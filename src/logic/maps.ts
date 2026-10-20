@@ -1,9 +1,10 @@
 import type { SpawnEntry } from './waves';
 
-export type MapId = 'jak1' | 'jak2';
+export type MapId = 'jak1' | 'jak2' | 'jak3';
 export type BossId =
   | 'darkEcoPlant' | 'klaww' | 'giantSpider' | 'golMaiaRobot'
-  | 'errol' | 'krew' | 'praxis' | 'metalKor';
+  | 'errol' | 'krew' | 'praxis' | 'metalKor'
+  | 'metalDino' | 'marauderChief' | 'veger' | 'darkMakerMachine';
 
 export interface BossDef {
   id: BossId;
@@ -27,6 +28,10 @@ export const BOSSES: Record<BossId, BossDef> = {
   krew: { id: 'krew', name: 'Krew', texture: 'krew', hp: 750, radius: 44, dps: 22, orbs: 30 },
   praxis: { id: 'praxis', name: 'Baron Praxis', texture: 'praxis', hp: 1100, radius: 34, dps: 30, orbs: 35 },
   metalKor: { id: 'metalKor', name: 'Metal Kor', texture: 'metalKor', hp: 1500, radius: 52, dps: 38, orbs: 60 },
+  metalDino: { id: 'metalDino', name: 'Metal Head Dinosaur', texture: 'metalDino', hp: 650, radius: 46, dps: 26, orbs: 25 },
+  marauderChief: { id: 'marauderChief', name: 'Marauder Chief', texture: 'marauderChief', hp: 450, radius: 34, dps: 24, orbs: 30 },
+  veger: { id: 'veger', name: 'Count Veger', texture: 'veger', hp: 1100, radius: 30, dps: 26, orbs: 35 },
+  darkMakerMachine: { id: 'darkMakerMachine', name: 'Dark Maker Machine', texture: 'darkMakerMachine', hp: 1600, radius: 56, dps: 40, orbs: 60 },
 };
 
 export interface GroundStyle {
@@ -142,10 +147,54 @@ export const MAPS: Record<MapId, MapDef> = {
       },
     ],
   },
+  jak3: {
+    id: 'jak3',
+    name: 'Wastelander',
+    zones: [
+      {
+        name: 'Spargus City',
+        ground: { base: 0xd9b77a, speckA: 0xbf9a5c, speckB: 0xecd3a2 },
+        decor: ['tent', 'palm', 'rock'],
+        pool: [
+          { enemy: 'marauder', weight: 3 }, { enemy: 'metalGrunt', weight: 1, after: 40 },
+          { enemy: 'metalFlitter', weight: 1, after: 70 },
+        ],
+        boss: 'metalDino',
+        quote: 'Spargus. Nice place, if you like sand in places sand should never be.',
+      },
+      {
+        name: 'The Wasteland',
+        ground: { base: 0xc9935a, speckA: 0xa8743e, speckB: 0xe0b07a },
+        decor: ['bones', 'rock'],
+        pool: [{ enemy: 'marauder', weight: 2 }, { enemy: 'marauderGunner', weight: 2 }, { enemy: 'metalBrute', weight: 1 }],
+        boss: 'marauderChief',
+        quote: 'Nothing but sand, Marauders... and more sand. I love it.',
+      },
+      {
+        name: 'Precursor Temple',
+        ground: { base: 0x5f6f5a, speckA: 0x45523f, speckB: 0x80ffdb },
+        decor: ['statue', 'pillar'],
+        pool: [{ enemy: 'precursorDrone', weight: 3 }, { enemy: 'templeGuardian', weight: 2 }, { enemy: 'marauderGunner', weight: 1 }],
+        boss: 'veger',
+        quote: 'A Precursor temple! Touch nothing. Okay, touch some things.',
+      },
+      {
+        name: 'Haven City Ruins',
+        ground: { base: 0x4a4a4a, speckA: 0x2f2f2f, speckB: 0xe85d04 },
+        decor: ['rubble', 'crate'],
+        pool: [
+          { enemy: 'deathBot', weight: 3 }, { enemy: 'deathBotGunner', weight: 2 }, { enemy: 'metalBrute', weight: 1 },
+          { enemy: 'precursorDrone', weight: 1 },
+        ],
+        boss: 'darkMakerMachine',
+        quote: "Haven City... what's left of it. Let's finish this, Jak.",
+      },
+    ],
+  },
 };
 
 /** Maps in unlock order: winning one unlocks the next. */
-export const MAP_ORDER: MapId[] = ['jak1', 'jak2'];
+export const MAP_ORDER: MapId[] = ['jak1', 'jak2', 'jak3'];
 
 export function nextMap(map: MapId): MapId | undefined {
   return MAP_ORDER[MAP_ORDER.indexOf(map) + 1];

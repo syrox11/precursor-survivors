@@ -4,7 +4,9 @@ export type EnemyId =
   // Jak 1
   | 'lurkerPuppy' | 'lurkerCrab' | 'babak' | 'flyingLurker' | 'boneArmor' | 'spider'
   // Jak II
-  | 'krimzonGuard' | 'guardGunner' | 'metalGrunt' | 'metalFlitter' | 'metalBrute';
+  | 'krimzonGuard' | 'guardGunner' | 'metalGrunt' | 'metalFlitter' | 'metalBrute'
+  // Jak 3
+  | 'marauder' | 'marauderGunner' | 'precursorDrone' | 'templeGuardian' | 'deathBot' | 'deathBotGunner';
 
 /**
  * chase: walks straight at Jak.
@@ -88,6 +90,32 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   metalBrute: enemy({
     id: 'metalBrute', name: 'Metal Head Brute', texture: 'metalBrute',
     hp: 70, speed: 50, dps: 26, radius: 19, xp: 4, behavior: 'charge',
+  }),
+  marauder: enemy({
+    id: 'marauder', name: 'Marauder', texture: 'marauder',
+    hp: 26, speed: 82, dps: 15, radius: 14, xp: 2, behavior: 'chase',
+  }),
+  marauderGunner: enemy({
+    id: 'marauderGunner', name: 'Marauder Gunner', texture: 'marauderGunner',
+    hp: 18, speed: 72, dps: 8, radius: 13, xp: 2, behavior: 'shooter',
+    shot: { damage: 10, every: 2.4, range: 280 },
+  }),
+  precursorDrone: enemy({
+    id: 'precursorDrone', name: 'Precursor Drone', texture: 'precursorDrone',
+    hp: 14, speed: 125, dps: 11, radius: 11, xp: 2, behavior: 'zigzag',
+  }),
+  templeGuardian: enemy({
+    id: 'templeGuardian', name: 'Temple Guardian', texture: 'templeGuardian',
+    hp: 75, speed: 48, dps: 26, radius: 19, xp: 4, behavior: 'charge',
+  }),
+  deathBot: enemy({
+    id: 'deathBot', name: 'KG Death Bot', texture: 'deathBot',
+    hp: 34, speed: 85, dps: 18, radius: 15, xp: 3, behavior: 'chase',
+  }),
+  deathBotGunner: enemy({
+    id: 'deathBotGunner', name: 'KG Gunner Bot', texture: 'deathBotGunner',
+    hp: 24, speed: 70, dps: 10, radius: 14, xp: 3, behavior: 'shooter',
+    shot: { damage: 12, every: 2.2, range: 280 },
   }),
 };
 

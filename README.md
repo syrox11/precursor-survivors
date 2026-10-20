@@ -61,7 +61,14 @@ Each map follows one game. Every 2:30 the zone changes (ground, scenery and enem
 | 5:00 | Mar's Tomb | Metal Head Brutes (charge), Flitters, Gunners | Baron Praxis (7:00): aimed bursts and bombing runs on your position |
 | 7:30 | Metal Head Nest | All the Metal Heads | Metal Kor (9:30): spiralling volleys, lunges, a brood of Metal Heads |
 
-A *Jak 3* map is next.
+**Wastelander (Jak 3)**, unlocked by winning Renegade
+
+| Time | Zone | Enemies | Boss (at) |
+|------|------|---------|-----------|
+| 0:00 | Spargus City | Marauders, a few Metal Heads | Metal Head Dinosaur (2:00): charges and stomps rings of shockwaves |
+| 2:30 | The Wasteland | Marauders, Marauder Gunners, Metal Head Brutes | Marauder Chief (4:30): circles in his buggy throwing grenades, calls his gang |
+| 5:00 | Precursor Temple | Precursor Drones (zigzag), Temple Guardians (charge) | Count Veger (7:00): blinks around you and fires a ring each time, summons drones |
+| 7:30 | Haven City Ruins | KG Death Bots and Gunner Bots | Dark Maker Machine (9:30): laser sweeps, Death Bot drops, charges when damaged |
 
 ### Between runs
 
@@ -90,7 +97,7 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [x] **Phase 3:** meta progression: Precursor batteries, shop, permanent power-ups, starting weapon, companions, bans, skins and challenges
 - [x] **Phase 4a:** zones and bosses; the Jak 1 map
 - [x] **Phase 4b:** the Jak II map, unlocked by winning the first one
-- [ ] **Phase 4c:** the Jak 3 map (Spargus, the wasteland, the Precursor temple...)
+- [x] **Phase 4c:** the Jak 3 map, unlocked by winning the second one
 - [ ] **Phase 5:** E2E tests with Playwright on the canvas, performance checks
 
 ## Tech

@@ -245,6 +245,140 @@ class MetalKor implements BossAI {
   }
 }
 
+/** Stomps rings of shockwaves around itself and charges across the arena. */
+class MetalDino implements BossAI {
+  private stomp = new Cooldown(5, 3);
+  private charge = new Cooldown(4.5, 2);
+  private charging = 0;
+  private chargeAngle = 0;
+
+  update(dt: number, self: Enemy, c: BossContext): void {
+    if (this.charging > 0) {
+      this.charging -= dt;
+      self.sprite.x += Math.cos(this.chargeAngle) * 430 * dt;
+      self.sprite.y += Math.sin(this.chargeAngle) * 430 * dt;
+    } else {
+      moveTowards(self, c.player, 65, dt);
+    }
+    self.sprite.setFlipX(c.player.x < self.sprite.x);
+
+    this.charge.tick(dt, () => {
+      this.chargeAngle = angleTo(self.sprite, c.player);
+      this.charging = 0.9;
+    });
+    this.stomp.tick(dt, () => {
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        c.hazard({ x: self.sprite.x + Math.cos(angle) * 110, y: self.sprite.y + Math.sin(angle) * 110 }, 60, 0.9, 24);
+      }
+    });
+  }
+}
+
+/** Circles in his buggy lobbing grenades at Jak, and whistles for his gang. */
+class MarauderChief implements BossAI {
+  private orbit = 0;
+  private grenades = new Cooldown(2.5, 1.5);
+  private gang = new Cooldown(9, 5);
+
+  update(dt: number, self: Enemy, c: BossContext): void {
+    this.orbit -= dt * 0.9;
+    const target = { x: c.player.x + Math.cos(this.orbit) * 230, y: c.player.y + Math.sin(this.orbit) * 230 };
+    moveTowards(self, target, 200, dt);
+    self.sprite.setFlipX(c.player.x < self.sprite.x);
+
+    this.grenades.tick(dt, () => {
+      for (let i = 0; i < 2; i++) {
+        const angle = c.rng() * Math.PI * 2;
+        const spread = i === 0 ? 0 : 70;
+        c.hazard({ x: c.player.x + Math.cos(angle) * spread, y: c.player.y + Math.sin(angle) * spread }, 60, 1.1, 22, self.sprite);
+      }
+    });
+    this.gang.tick(dt, () => {
+      for (let i = 0; i < 4; i++) {
+        c.spawnMinion(i % 2 ? 'marauder' : 'marauderGunner', { x: self.sprite.x + (i - 1.5) * 40, y: self.sprite.y - 40 });
+      }
+    });
+  }
+}
+
+/** Blinks around Jak with Precursor tech, firing a ring each time he reappears. */
+class Veger implements BossAI {
+  private blink = new Cooldown(4.5, 3);
+  private drones = new Cooldown(8, 5);
+
+  update(dt: number, self: Enemy, c: BossContext): void {
+    if (distance(self.sprite, c.player) > 180) moveTowards(self, c.player, 45, dt);
+
+    this.blink.tick(dt, () => {
+      const angle = c.rng() * Math.PI * 2;
+      self.sprite.setPosition(c.player.x + Math.cos(angle) * 220, c.player.y + Math.sin(angle) * 220);
+      self.sprite.setAlpha(0.2);
+      c.scene.tweens.add({ targets: self.sprite, alpha: 1, duration: 300 });
+      for (let i = 0; i < 10; i++) c.fireHostile(self.sprite, (i / 10) * Math.PI * 2, 200, 13, 'precursorBolt');
+    });
+    this.drones.tick(dt, () => {
+      for (let i = 0; i < 3; i++) {
+        const angle = c.rng() * Math.PI * 2;
+        c.spawnMinion('precursorDrone', { x: self.sprite.x + Math.cos(angle) * 50, y: self.sprite.y + Math.sin(angle) * 50 });
+      }
+    });
+  }
+}
+
+/** The Dark Makers' war machine: sweeping laser bursts, Death Bot drops, and charges once damaged. */
+class DarkMakerMachine implements BossAI {
+  private sweep = new Cooldown(5, 2);
+  private bots = new Cooldown(8, 5);
+  private charge = new Cooldown(4, 4);
+  private sweepShots = 0;
+  private sweepAngle = 0;
+  private sweepTimer = 0;
+  private charging = 0;
+  private chargeAngle = 0;
+
+  update(dt: number, self: Enemy, c: BossContext): void {
+    const enraged = self.hp < self.maxHp / 2;
+    if (this.charging > 0) {
+      this.charging -= dt;
+      self.sprite.x += Math.cos(this.chargeAngle) * 380 * dt;
+      self.sprite.y += Math.sin(this.chargeAngle) * 380 * dt;
+    } else {
+      moveTowards(self, c.player, 50, dt);
+    }
+
+    // A laser sweep: 16 shots fanning across Jak's position over 1.6 seconds
+    this.sweep.tick(dt, () => {
+      this.sweepShots = 16;
+      this.sweepAngle = angleTo(self.sprite, c.player) - 0.8;
+    }, enraged ? 3.5 : 5);
+    if (this.sweepShots > 0) {
+      this.sweepTimer -= dt;
+      if (this.sweepTimer <= 0) {
+        this.sweepTimer = 0.1;
+        this.sweepShots--;
+        this.sweepAngle += 0.1;
+        c.fireHostile(self.sprite, this.sweepAngle, 320, 14, 'darkLaser');
+      }
+    }
+
+    this.bots.tick(dt, () => {
+      for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2;
+        c.spawnMinion(i % 2 ? 'deathBot' : 'deathBotGunner', {
+          x: self.sprite.x + Math.cos(angle) * 80, y: self.sprite.y + Math.sin(angle) * 80,
+        });
+      }
+    });
+    if (enraged) {
+      this.charge.tick(dt, () => {
+        this.chargeAngle = angleTo(self.sprite, c.player);
+        this.charging = 0.7;
+      });
+    }
+  }
+}
+
 export function createBossAI(id: BossId): BossAI {
   switch (id) {
     case 'darkEcoPlant': return new DarkEcoPlant();
@@ -255,5 +389,9 @@ export function createBossAI(id: BossId): BossAI {
     case 'krew': return new Krew();
     case 'praxis': return new Praxis();
     case 'metalKor': return new MetalKor();
+    case 'metalDino': return new MetalDino();
+    case 'marauderChief': return new MarauderChief();
+    case 'veger': return new Veger();
+    case 'darkMakerMachine': return new DarkMakerMachine();
   }
 }

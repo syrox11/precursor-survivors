@@ -360,6 +360,126 @@ export class BootScene extends Phaser.Scene {
       g.fillStyle(0x1b4332).fillRect(6, 34, 24, 6);
     });
 
+    // ---- Jak 3 ----
+
+    this.texture('marauder', 28, 36, (g) => {
+      g.fillStyle(0x3b2a1a).fillRect(8, 28, 5, 8).fillRect(15, 28, 5, 8);
+      g.fillStyle(0x8b5a2b).fillRoundedRect(4, 12, 20, 18, 4); // leather
+      g.fillStyle(0x5c4326).fillRect(4, 18, 20, 3); // belt
+      g.fillStyle(0xd9a877).fillCircle(14, 8, 7);
+      g.fillStyle(0x6c757d).fillRect(7, 6, 14, 5); // mask
+      g.fillStyle(0xe5383b).fillCircle(11, 8, 1.5).fillCircle(17, 8, 1.5);
+      g.fillStyle(0xadb5bd).fillTriangle(22, 10, 28, 4, 26, 18); // blade
+    });
+
+    this.texture('marauderGunner', 30, 36, (g) => {
+      g.fillStyle(0x3b2a1a).fillRect(8, 28, 5, 8).fillRect(15, 28, 5, 8);
+      g.fillStyle(0x6f4518).fillRoundedRect(4, 12, 20, 18, 4);
+      g.fillStyle(0xd9a877).fillCircle(14, 8, 7);
+      g.fillStyle(0x6c757d).fillRect(7, 6, 14, 5);
+      g.fillStyle(0xff5400).fillCircle(11, 8, 1.5).fillCircle(17, 8, 1.5);
+      g.fillStyle(0x212529).fillRect(16, 17, 14, 5); // rifle
+    });
+
+    this.texture('precursorDrone', 26, 22, (g) => {
+      g.fillStyle(0x80ffdb, 0.35).fillCircle(13, 11, 11);
+      g.fillStyle(0x4a4e69).fillTriangle(13, 0, 24, 11, 13, 22).fillTriangle(13, 0, 2, 11, 13, 22);
+      g.fillStyle(0x80ffdb).fillCircle(13, 11, 4);
+    });
+
+    this.texture('templeGuardian', 42, 44, (g) => {
+      g.fillStyle(0x6c757d).fillRoundedRect(4, 10, 34, 30, 6); // stone body
+      g.fillStyle(0x495057).fillRect(0, 14, 8, 18).fillRect(34, 14, 8, 18); // arms
+      g.fillStyle(0x80ffdb).fillRect(12, 18, 18, 4); // glowing visor
+      g.fillStyle(0x495057).fillRect(8, 40, 10, 4).fillRect(24, 40, 10, 4);
+      g.fillStyle(0xadb5bd).fillTriangle(10, 10, 21, 0, 32, 10);
+    });
+
+    this.texture('deathBot', 30, 34, (g) => {
+      g.fillStyle(0x343a40).fillRect(7, 26, 5, 8).fillRect(18, 26, 5, 8);
+      g.fillStyle(0xb71c1c).fillRoundedRect(3, 8, 24, 20, 4); // red KG plating
+      g.fillStyle(0x495057).fillRoundedRect(7, 0, 16, 10, 3);
+      g.fillStyle(0xff5400).fillCircle(15, 5, 3); // single eye
+      g.fillStyle(0xadb5bd).fillTriangle(27, 12, 30, 22, 25, 22); // claw
+    });
+
+    this.texture('deathBotGunner', 32, 34, (g) => {
+      g.fillStyle(0x343a40).fillRect(7, 26, 5, 8).fillRect(18, 26, 5, 8);
+      g.fillStyle(0x7f1d1d).fillRoundedRect(3, 8, 24, 20, 4);
+      g.fillStyle(0x495057).fillRoundedRect(7, 0, 16, 10, 3);
+      g.fillStyle(0xffd60a).fillCircle(15, 5, 3);
+      g.fillStyle(0x212529).fillRect(20, 14, 12, 6); // cannon
+    });
+
+    this.texture('metalDino', 110, 80, (g) => {
+      g.fillStyle(0x1b1c2b).fillTriangle(0, 50, 30, 36, 30, 58); // tail
+      g.fillStyle(0x2b2d42).fillEllipse(54, 46, 70, 46); // body
+      g.fillStyle(0x1b1c2b).fillRect(36, 62, 12, 18).fillRect(62, 62, 12, 18); // legs
+      g.fillStyle(0x2b2d42).fillEllipse(92, 28, 36, 26); // head
+      g.fillStyle(0xe9e3d0).fillTriangle(84, 36, 88, 44, 92, 36).fillTriangle(94, 36, 98, 44, 102, 36); // teeth
+      g.fillStyle(0x52b788).fillTriangle(40, 26, 46, 10, 52, 26).fillTriangle(56, 24, 62, 8, 68, 24); // spines
+      g.fillStyle(0x95d5b2).fillCircle(88, 18, 5); // skull gem
+      g.fillStyle(0xe5383b).fillCircle(100, 24, 3);
+    });
+
+    this.texture('marauderChief', 76, 56, (g) => {
+      g.fillStyle(0x6c584c).fillRoundedRect(0, 32, 76, 16, 6); // buggy
+      g.fillStyle(0x212529).fillCircle(14, 50, 7).fillCircle(62, 50, 7); // wheels
+      g.fillStyle(0x8b5a2b).fillRoundedRect(24, 10, 28, 26, 6); // chief
+      g.fillStyle(0xd9a877).fillCircle(38, 9, 9);
+      g.fillStyle(0x6c757d).fillRect(30, 6, 16, 6); // mask
+      g.fillStyle(0xe5383b).fillCircle(34, 9, 2).fillCircle(42, 9, 2);
+      g.fillStyle(0xe9e3d0).fillTriangle(26, 2, 30, -4, 34, 4).fillTriangle(42, 4, 46, -4, 50, 2); // trophy horns
+    });
+
+    this.texture('veger', 46, 64, (g) => {
+      g.fillStyle(0x3c096c).fillTriangle(4, 62, 23, 16, 42, 62); // robe
+      g.fillStyle(0x5a189a).fillRoundedRect(12, 18, 22, 30, 6);
+      g.fillStyle(0xd9a441).fillRect(12, 18, 22, 4); // gold trim
+      g.fillStyle(0xe8d5b7).fillCircle(23, 11, 9);
+      g.fillStyle(0x1a1a1a).fillRect(16, 9, 14, 2); // brows
+      g.fillStyle(0xd9a441).fillCircle(37, 30, 5); // precursor artefact
+      g.fillStyle(0x80ffdb).fillCircle(37, 30, 2);
+    });
+
+    this.texture('darkMakerMachine', 128, 118, (g) => {
+      g.fillStyle(0x10002b).fillRect(24, 84, 20, 34).fillRect(84, 84, 20, 34); // legs
+      g.fillStyle(0x240046).fillRoundedRect(8, 30, 112, 60, 16); // hull
+      g.fillStyle(0x3c096c).fillTriangle(8, 40, 0, 4, 34, 32).fillTriangle(120, 40, 128, 4, 94, 32); // spikes
+      g.fillStyle(0x10002b).fillRoundedRect(40, 4, 48, 32, 10); // head
+      g.fillStyle(0xff006e).fillCircle(54, 20, 6).fillCircle(74, 20, 6); // dark eyes
+      g.fillStyle(0x7b2cbf).fillCircle(64, 60, 18); // dark eco core
+      g.fillStyle(0xe0aaff).fillCircle(64, 60, 7);
+    });
+
+    this.texture('precursorBolt', 14, 14, (g) => {
+      g.fillStyle(0x0f766e).fillCircle(7, 7, 7);
+      g.fillStyle(0x80ffdb).fillCircle(7, 7, 3);
+    });
+
+    this.texture('darkLaser', 22, 6, (g) => {
+      g.fillStyle(0xff006e).fillRoundedRect(0, 0, 22, 6, 3);
+      g.fillStyle(0xffc2e2).fillRoundedRect(4, 1, 14, 4, 2);
+    });
+
+    this.texture('tent', 56, 44, (g) => {
+      g.fillStyle(0xbc6c25).fillTriangle(0, 44, 28, 0, 56, 44);
+      g.fillStyle(0x7f4f24).fillTriangle(20, 44, 28, 20, 36, 44); // opening
+    });
+
+    this.texture('bones', 44, 24, (g) => {
+      g.fillStyle(0xe9e3d0).fillRect(4, 10, 36, 4).fillCircle(4, 9, 3).fillCircle(4, 15, 3).fillCircle(40, 9, 3).fillCircle(40, 15, 3);
+      g.fillStyle(0xe9e3d0).fillCircle(22, 6, 6); // skull
+      g.fillStyle(0x1a1a1a).fillCircle(20, 5, 1.5).fillCircle(24, 5, 1.5);
+    });
+
+    this.texture('rubble', 50, 30, (g) => {
+      g.fillStyle(0x5c5c5c).fillRect(0, 12, 22, 18).fillRect(18, 4, 18, 26);
+      g.fillStyle(0x3a3a3a).fillRect(34, 16, 16, 14);
+      g.fillStyle(0xe85d04).fillCircle(26, 26, 3); // embers
+      g.fillStyle(0xffba08).fillCircle(10, 26, 2);
+    });
+
     for (const map of Object.values(MAPS)) {
       map.zones.forEach((zone, i) => {
         this.texture(groundTexture(map.id, i), 64, 64, (g) => drawGround(g, zone.ground));
