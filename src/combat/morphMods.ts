@@ -380,7 +380,9 @@ export class SuperNova extends CooldownWeapon {
   }
 
   protected trigger(level: number, c: Combat) {
-    if (c.enemies.length === 0) return false;
+    // Never start a new charge over one in progress: with a cooldown shorter than the charge, the old glow
+    // used to be orphaned and stayed on screen forever. Waiting here makes the charge the real minimum cooldown.
+    if (this.charging > 0 || c.enemies.length === 0) return false;
     const { damage, radius } = weaponStats('superNova', level);
     this.pending = { damage: this.damage(c, damage), radius: this.area(c, radius) };
     this.charging = SuperNova.CHARGE;

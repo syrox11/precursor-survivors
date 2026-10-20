@@ -4,6 +4,9 @@ import type { Combat } from './types';
 
 interface Ally {
   sprite: Phaser.GameObjects.Image;
+  /** Shown in the HUD timers, e.g. "Torn" or "Yellow eco turret". */
+  label: string;
+  total: number;
   style: AllyStyle;
   timeLeft: number;
   fireTimer: number;
@@ -29,9 +32,14 @@ export class Allies {
 
   constructor(private readonly scene: Phaser.Scene) {}
 
-  add(texture: string, style: AllyStyle, seconds: number, at: { x: number; y: number }): void {
+  add(texture: string, style: AllyStyle, seconds: number, at: { x: number; y: number }, label: string): void {
     const sprite = this.scene.add.image(at.x, at.y, texture).setDepth(DEPTH);
-    this.allies.push({ sprite, style, timeLeft: seconds, fireTimer: 0, slot: this.allies.length, stationary: style === 'turret' });
+    this.allies.push({ sprite, label, total: seconds, style, timeLeft: seconds, fireTimer: 0, slot: this.allies.length, stationary: style === 'turret' });
+  }
+
+  /** Who is still fighting and for how long, for the HUD timers. */
+  timers(): { label: string; timeLeft: number; total: number }[] {
+    return this.allies.map(({ label, timeLeft, total }) => ({ label, timeLeft, total }));
   }
 
   /** Stand a little behind and to the side of Jak. */

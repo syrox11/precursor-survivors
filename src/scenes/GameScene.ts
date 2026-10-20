@@ -27,7 +27,7 @@ import {
 } from '../logic/waves';
 import { gainXp, INITIAL_XP, xpToNextLevel, type XpState } from '../logic/xp';
 import {
-  ABILITIES, ABILITY_TUNING, addEco, BOSS_WISPS, CHEST_ECO, DARK_DAMAGE_BONUS, drain, EMPTY_ECO, LIGHT_DAMAGE_TAKEN,
+  ABILITIES, ABILITY_TUNING, addEco, BOSS_WISPS, CHEST_ECO, DARK_DAMAGE_BONUS, drain, EMPTY_ECO, FORM_SECONDS, LIGHT_DAMAGE_TAKEN,
   METER_MAX, rollWisp, transform, useAbility, WISP_VALUE, type AbilityId, type EcoMode, type EcoState,
 } from '../logic/eco';
 import { darkBlastTick, darkBomb, darkStrike } from '../combat/darkPowers';
@@ -71,10 +71,33 @@ const SPAWN_DISTANCE = Math.hypot(GAME_WIDTH, GAME_HEIGHT) / 2 + 40;
 const BOSS_SPAWN_DISTANCE = 380;
 const BOSS_AIM_BIAS = 250;
 const MAX_ORBS = 200;
+const MAX_TIMER_ROWS = 8;
+const TIMER_ROW_HEIGHT = 26;
+const TIMER_BAR_WIDTH = 150;
 const MAX_EXPLOSION_FX = 24;
 const CHARGE_EVERY = 3;
 const CHARGE_TIME = 0.45;
 const CHARGE_SPEED = 3.2;
+
+type TimerKey = 'damage' | 'speed' | 'invulnerable' | 'frozen' | 'invisible' | 'darkBlast';
+
+interface EffectTimer {
+  label: string;
+  color: number;
+  until: number;
+  total: number;
+}
+
+interface RunningTimer {
+  label: string;
+  left: number;
+  total: number;
+  color: number;
+}
+
+const TIMER_COLORS: Record<TimerKey | 'ally', number> = {
+  damage: 0xe5383b, speed: 0x3a86ff, invulnerable: 0x80ffdb, frozen: 0x90e0ef, invisible: 0xadb5bd, darkBlast: 0xc77dff, ally: 0xffb703,
+};
 
 const DEPTH = { decor: 1, orb: 2, enemy: 3, player: 4, companion: 5, fx: 6, hud: 100 };
 
@@ -143,6 +166,8 @@ export class GameScene extends Phaser.Scene {
   private explosionFx = 0;
   /** Timed buffs from pickups and characters; "until" values are run seconds. */
   private buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
+  /** What each running timed effect is called and how long it lasts, for the HUD countdowns and the pause screen. */
+  private timers = new Map<TimerKey, EffectTimer>();
   /** Chest upgrades for a gun colour or one weapon, for the rest of the run. */
   private weaponMods: WeaponMod[] = [];
   /** Gyro Burster decoys pulling enemies in. */
@@ -177,6 +202,9 @@ export class GameScene extends Phaser.Scene {
     darkFill: Phaser.GameObjects.Rectangle;
     ecoHint: Phaser.GameObjects.Text;
     synergies: Phaser.GameObjects.Text;
+    /** Right-hand countdowns for timed effects: one label per row plus one graphics layer for the bars. */
+    timerLabels: Phaser.GameObjects.Text[];
+    timerBars: Phaser.GameObjects.Graphics;
     abilities: Phaser.GameObjects.Container;
     /** What the ability bar currently shows, so it is only rebuilt when that changes. */
     abilitiesKey: string;
@@ -378,6 +406,7 @@ export class GameScene extends Phaser.Scene {
     this.bonusBatteries = 0;
     this.explosionFx = 0;
     this.buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
+    this.timers = new Map();
     this.weaponMods = [];
     this.decoys = [];
     this.eco = EMPTY_ECO;
@@ -562,18 +591,30 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('Pause', data);
   }
 
+  private startTimer(key: TimerKey, label: string, seconds: number): void {
+    this.timers.set(key, { label, color: TIMER_COLORS[key], until: this.elapsed + seconds, total: seconds });
+  }
+
+  /** Every timed effect still running, longest first: buffs, allies and turrets, and the Light/Dark Jak form. */
+  private runningTimers(): RunningTimer[] {
+    const running: RunningTimer[] = [...this.timers.values()]
+      .filter((t) => t.until > this.elapsed)
+      .map((t) => ({ label: t.label, left: t.until - this.elapsed, total: t.total, color: t.color }));
+    for (const ally of this.allies.timers()) {
+      running.push({ label: ally.label, left: ally.timeLeft, total: ally.total, color: TIMER_COLORS.ally });
+    }
+    if (this.eco.active) {
+      // The form lasts while its meter drains: a full meter is FORM_SECONDS
+      const left = (this.eco[this.eco.active] / METER_MAX) * FORM_SECONDS;
+      const light = this.eco.active === 'light';
+      running.push({ label: light ? 'Light Jak' : 'Dark Jak', left, total: FORM_SECONDS, color: light ? 0x90e0ef : 0xc77dff });
+    }
+    return running.sort((a, b) => b.left - a.left);
+  }
+
   /** Timed effects running right now, with seconds left, for the pause screen. */
   private activeEffects(): string[] {
-    const left = (until: number) => `${Math.ceil(until - this.elapsed)}s`;
-    const now = this.elapsed;
-    const effects: string[] = [];
-    if (now < this.buffs.damageUntil) effects.push(`+${Math.round((this.buffs.damage - 1) * 100)}% damage (${left(this.buffs.damageUntil)})`);
-    if (now < this.buffs.speedUntil) effects.push(`+${Math.round((this.buffs.speed - 1) * 100)}% speed (${left(this.buffs.speedUntil)})`);
-    if (now < this.buffs.invulnerableUntil) effects.push(`Invulnerable (${left(this.buffs.invulnerableUntil)})`);
-    if (now < this.frozenUntil) effects.push(`Enemies frozen (${left(this.frozenUntil)})`);
-    if (now < this.invisibleUntil) effects.push(`Invisible (${left(this.invisibleUntil)})`);
-    if (now < this.darkBlastUntil) effects.push(`Dark Blast (${left(this.darkBlastUntil)})`);
-    if (this.eco.active) effects.push(`${this.eco.active === 'light' ? 'Light' : 'Dark'} Jak: ${Math.round(this.eco[this.eco.active])} eco left`);
+    const effects = this.runningTimers().map((t) => `${t.label} (${Math.ceil(t.left)}s)`);
     if (this.victory) {
       const minutes = this.sinceVictory() / 60;
       effects.push(`Endless mode: a boss every ${ENDLESS_BOSS_EVERY}s, a horde every ${ENDLESS_HORDE_EVERY}s, an oracle every 45s, a character every 60s`);
@@ -642,6 +683,7 @@ export class GameScene extends Phaser.Scene {
         this.buffs.speed = JET_BOARD.speedMultiplier;
         this.buffs.speedUntil = this.elapsed + JET_BOARD.seconds;
         this.buffs.boardUntil = this.buffs.speedUntil;
+        this.startTimer('speed', `JET-Board: +${Math.round((JET_BOARD.speedMultiplier - 1) * 100)}% speed`, JET_BOARD.seconds);
         this.floatText(at, 'JET-BOARD!', '#ffb703');
         break;
       case 'lightEco':
@@ -654,10 +696,11 @@ export class GameScene extends Phaser.Scene {
       case 'redEco':
         this.buffs.damage = RED_ECO.damageMultiplier;
         this.buffs.damageUntil = this.elapsed + RED_ECO.seconds;
+        this.startTimer('damage', `Red eco: +${Math.round((RED_ECO.damageMultiplier - 1) * 100)}% damage`, RED_ECO.seconds);
         this.floatText(at, 'RED ECO!', '#e5383b');
         break;
       case 'yellowEco':
-        this.allies.add('ecoTurret', 'turret', YELLOW_ECO_TURRET_SECONDS, at);
+        this.allies.add('ecoTurret', 'turret', YELLOW_ECO_TURRET_SECONDS, at, 'Yellow eco turret');
         this.floatText(at, 'YELLOW ECO TURRET!', '#ffd60a');
         break;
       case 'weaponMod': {
@@ -746,14 +789,17 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'timeStop':
         this.frozenUntil = this.elapsed + t.timeStopSeconds;
+        this.startTimer('frozen', 'Flash Freeze: enemies stopped', t.timeStopSeconds);
         this.cameras.main.flash(300, 144, 224, 239);
         break;
       case 'shield':
         this.buffs.invulnerableUntil = this.elapsed + t.shieldSeconds;
+        this.startTimer('invulnerable', 'Light Shield: no damage', t.shieldSeconds);
         break;
       case 'wings':
         this.buffs.speed = t.wingsSpeed;
         this.buffs.speedUntil = this.elapsed + t.wingsSeconds;
+        this.startTimer('speed', `Light Flight: +${Math.round((t.wingsSpeed - 1) * 100)}% speed`, t.wingsSeconds);
         break;
       case 'darkBomb':
         darkBomb(this.combat, this.player, this.darkPowerScale());
@@ -761,10 +807,12 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'darkBlast':
         this.darkBlastUntil = this.elapsed + t.darkBlastSeconds;
+        this.startTimer('darkBlast', 'Dark Blast', t.darkBlastSeconds);
         this.darkBlastTimer = 0;
         break;
       case 'invisibility':
         this.invisibleUntil = this.elapsed + t.invisibilitySeconds;
+        this.startTimer('invisible', 'Invisibility', t.invisibilitySeconds);
         break;
       case 'darkStrike':
         // Jak glows while charging, then the wave fires where he faces
@@ -791,10 +839,12 @@ export class GameScene extends Phaser.Scene {
         this.attractAllOrbs();
         this.buffs.speed = 1.5;
         this.buffs.speedUntil = this.elapsed + gift.seconds;
+        this.startTimer('speed', `${npc.name}: +50% speed`, gift.seconds);
         break;
       case 'damageBuff':
         this.buffs.damage = gift.multiplier;
         this.buffs.damageUntil = this.elapsed + gift.seconds;
+        this.startTimer('damage', `${npc.name}: +${Math.round((gift.multiplier - 1) * 100)}% damage`, gift.seconds);
         break;
       case 'screenClear':
         this.screenClear();
@@ -813,10 +863,11 @@ export class GameScene extends Phaser.Scene {
         this.pendingGifts.push(`${npc.name.toUpperCase()}'S GIFT`);
         break;
       case 'ally':
-        this.allies.add(npc.texture, gift.style, gift.seconds, at);
+        this.allies.add(npc.texture, gift.style, gift.seconds, at, npc.name);
         break;
       case 'shield':
         this.buffs.invulnerableUntil = this.elapsed + gift.seconds;
+        this.startTimer('invulnerable', `${npc.name}: eco shield`, gift.seconds);
         break;
       case 'random':
         break;
@@ -1343,6 +1394,9 @@ export class GameScene extends Phaser.Scene {
     this.hud = {
       hpFill, xpFill, level, timer, counters, loadout, boss, bossFill, bossName,
       lightFill, darkFill, ecoHint, synergies, abilities, abilitiesKey: '',
+      timerLabels: Array.from({ length: MAX_TIMER_ROWS }, () =>
+        fixed(this.add.text(GAME_WIDTH - 16, 0, '', { ...style, fontSize: '12px', align: 'right' }).setOrigin(1, 0).setStroke('#000000', 3))),
+      timerBars: fixed(this.add.graphics()),
     };
     this.renderLoadout();
   }
@@ -1385,11 +1439,31 @@ export class GameScene extends Phaser.Scene {
       this.hud.bossFill.scaleX = Math.max(0, boss.hp / boss.maxHp);
     }
 
+    this.renderTimers();
     this.hud.lightFill.scaleX = this.eco.light / METER_MAX;
     this.hud.darkFill.scaleX = this.eco.dark / METER_MAX;
     const ready = [this.eco.light >= METER_MAX && 'E: Light Jak', this.eco.dark >= METER_MAX && 'Q: Dark Jak'].filter(Boolean);
     this.hud.ecoHint.setText(this.eco.active ? '' : ready.join('\n'));
     this.renderAbilities();
+  }
+
+  /** Under the synergies on the right: every timed effect with its seconds left and a draining bar. */
+  private renderTimers(): void {
+    const timers = this.runningTimers().slice(0, MAX_TIMER_ROWS);
+    const bars = this.hud.timerBars;
+    bars.clear();
+    const synergies = this.hud.synergies;
+    const top = synergies.y + (synergies.text ? synergies.height : 0) + 10;
+    this.hud.timerLabels.forEach((label, i) => {
+      const timer = timers[i];
+      label.setVisible(!!timer);
+      if (!timer) return;
+      const y = top + i * TIMER_ROW_HEIGHT;
+      label.setY(y).setText(`${timer.label}  ${Math.ceil(timer.left)}s`);
+      const x = GAME_WIDTH - 16 - TIMER_BAR_WIDTH;
+      bars.fillStyle(0x000000, 0.6).fillRect(x, y + 16, TIMER_BAR_WIDTH, 4);
+      bars.fillStyle(timer.color, 1).fillRect(x, y + 16, TIMER_BAR_WIDTH * Math.max(0, Math.min(1, timer.left / timer.total)), 4);
+    });
   }
 
   /** Bottom centre while transformed: the four abilities with their key, name and cost. */

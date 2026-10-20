@@ -101,7 +101,7 @@ Their gifts fit the character: Keira upgrades a weapon, Samos heals you and rais
 
 Enemies sometimes drop these pickups too (everything except weapon mods). Chests can also hold **light** or **dark eco** (fills that meter), **red eco** (more damage for a while), **yellow eco**, which turns into a turret that keeps shooting for 15 seconds, or a **weapon mod**.
 
-Every hit shows its damage, and wounded enemies show a health bar.
+Every hit shows its damage, and wounded enemies show a health bar. Timed effects (red eco, the JET-Board, turrets, characters fighting with you, shields, Light/Dark Jak...) show a countdown on the right.
 
 ### Light Jak and Dark Jak
 
