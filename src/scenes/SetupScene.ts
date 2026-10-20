@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage } from '../config';
 import { ITEMS, type ItemId } from '../logic/items';
+import { MAPS } from '../logic/maps';
 import { COMPANIONS, SKINS } from '../logic/meta';
 import { loadSave, writeSave, type RunSetup, type SaveData } from '../logic/save';
 import { addButton } from '../ui/button';
@@ -62,6 +63,7 @@ export class SetupScene extends Phaser.Scene {
     this.selector(add, 325, 'Skin', SKINS[this.setup.skin].name, 'Cosmetic', this.save.skins, this.setup.skin, (id) => {
       this.setup.skin = id;
     });
+    this.selector(add, 425, 'Map', MAPS.jak1.name, 'Jak II and Jak 3 maps coming soon', ['jak1'], 'jak1', () => {});
 
     // Right: bans
     const left = 600;

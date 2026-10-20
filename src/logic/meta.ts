@@ -96,6 +96,7 @@ export interface RunSummary {
   time: number;
   kills: number;
   level: number;
+  bossesDefeated: number;
 }
 
 export interface ChallengeDef {
@@ -109,7 +110,7 @@ export interface ChallengeDef {
 
 export const CHALLENGES: Record<ChallengeId, ChallengeDef> = {
   powerCell: {
-    id: 'powerCell', name: 'Power Cell', description: 'Survive 10 minutes',
+    id: 'powerCell', name: 'Power Cell', description: 'Survive 10 minutes and defeat the final boss',
     reward: 50, unlocksSkin: 'darkJak', isMet: (run) => run.won,
   },
   exterminator: {
@@ -123,10 +124,12 @@ export const CHALLENGES: Record<ChallengeId, ChallengeDef> = {
 };
 
 export const POWER_CELL_BONUS = 25;
+export const BOSS_BONUS = 5;
 
-/** 1 battery per 30 seconds survived, 1 per 100 Lurkers, plus a bonus for the Power Cell. */
+/** 1 battery per 30 seconds survived, 1 per 100 Lurkers, 5 per boss, plus a bonus for the Power Cell. */
 export function batteriesForRun(run: RunSummary): number {
-  return Math.floor(run.time / 30) + Math.floor(run.kills / 100) + (run.won ? POWER_CELL_BONUS : 0);
+  return Math.floor(run.time / 30) + Math.floor(run.kills / 100) + BOSS_BONUS * run.bossesDefeated
+    + (run.won ? POWER_CELL_BONUS : 0);
 }
 
 /** Additive bonuses applied on top of item stats. 0.1 = +10%. */

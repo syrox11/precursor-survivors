@@ -1,19 +1,26 @@
 import * as Phaser from 'phaser';
+import { createBossAI, type BossAI, type BossContext } from '../combat/bosses';
 import { createCompanion, type Companion, type CompanionContext } from '../combat/companions';
+import { HostileSystem } from '../combat/hostiles';
 import { createWeapon, type Weapon } from '../combat/weapons';
-import type { Combat, Enemy, Point, ProjectileSpec } from '../combat/types';
+import type { Combat, Enemy, EnemyStats, Point, ProjectileSpec } from '../combat/types';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage, PLAYER_RADIUS, RUN_DURATION, WORLD_SIZE } from '../config';
-import { debugEnabled, debugLoadout, exposeDebug } from '../debug';
+import { debugEnabled, debugGodMode, debugLoadout, debugStartTime, exposeDebug } from '../debug';
 import {
   applyItem, ITEMS, ownedOfKind, rollChoices, STARTING_LOADOUT, startingLoadout,
   type ItemId, type Loadout, type WeaponId,
 } from '../logic/items';
+import {
+  BOSSES, bossesDue, bossHpMultiplier, bossSpawnTime, groundTexture, MAPS, zoneChanged, zoneIndexAt, type MapDef,
+} from '../logic/maps';
 import { bonusesFor, COMPANIONS, NO_BONUSES, SKINS, type Bonuses } from '../logic/meta';
-import { loadSave, type RunSetup } from '../logic/save';
 import { formatTime } from '../logic/records';
 import { createRng, randomBetween, seedFromQuery, type Rng } from '../logic/rng';
+import { loadSave, type RunSetup } from '../logic/save';
 import { computeStats, type PlayerStats } from '../logic/stats';
-import { damageMultiplier, hordeSize, hpMultiplier, MAX_ENEMIES, pickEnemy, spawnInterval, type EnemyDef } from '../logic/waves';
+import {
+  damageMultiplier, ENEMIES, hordeSize, hpMultiplier, MAX_ENEMIES, pickEnemy, spawnInterval, type EnemyDef,
+} from '../logic/waves';
 import { gainXp, INITIAL_XP, xpToNextLevel, type XpState } from '../logic/xp';
 import type { RunResult } from './GameOverScene';
 import type { LevelUpData } from './LevelUpScene';
@@ -39,6 +46,11 @@ const ORB_SPEED = 420;
 const KNOCKBACK = 240;
 const KNOCKBACK_DECAY = 8;
 const SPAWN_DISTANCE = Math.hypot(GAME_WIDTH, GAME_HEIGHT) / 2 + 40;
+const BOSS_SPAWN_DISTANCE = 380;
+const BOSS_AIM_BIAS = 250;
+const CHARGE_EVERY = 3;
+const CHARGE_TIME = 0.45;
+const CHARGE_SPEED = 3.2;
 
 const DEPTH = { decor: 1, orb: 2, enemy: 3, player: 4, companion: 5, fx: 6, hud: 100 };
 
@@ -49,6 +61,8 @@ export class GameScene extends Phaser.Scene {
   private setup!: RunSetup;
   private bonuses: Bonuses = NO_BONUSES;
   private rerolls = 0;
+  private map: MapDef = MAPS.jak1;
+  private zone = 0;
 
   private player!: Phaser.GameObjects.Image;
   private companionSprite!: Phaser.GameObjects.Image;
@@ -56,6 +70,8 @@ export class GameScene extends Phaser.Scene {
   private companionContext!: CompanionContext;
   private speech?: Phaser.GameObjects.Text;
   private ground!: Phaser.GameObjects.TileSprite;
+  private decor: Phaser.GameObjects.Image[] = [];
+  private banner?: Phaser.GameObjects.Container;
   private aim: Point = { x: 1, y: 0 };
 
   private enemies: Enemy[] = [];
@@ -63,6 +79,12 @@ export class GameScene extends Phaser.Scene {
   private projectiles: Projectile[] = [];
   private weapons = new Map<WeaponId, Weapon>();
   private combat!: Combat;
+  private hostiles!: HostileSystem;
+  private bossContext!: BossContext;
+  private bossAI = new Map<Enemy, BossAI>();
+  private spawnedBosses = new Set<number>();
+  private bossesDefeated = 0;
+  private finalBossDefeated = false;
 
   private loadout: Loadout = STARTING_LOADOUT;
   private stats: PlayerStats = computeStats(STARTING_LOADOUT);
@@ -76,6 +98,7 @@ export class GameScene extends Phaser.Scene {
   private orbsCollected = 0;
   private spawnTimer = 0;
   private ended = false;
+  private godMode = false;
 
   private hud!: {
     hpFill: Phaser.GameObjects.Rectangle;
@@ -84,6 +107,9 @@ export class GameScene extends Phaser.Scene {
     timer: Phaser.GameObjects.Text;
     counters: Phaser.GameObjects.Text;
     loadout: Phaser.GameObjects.Container;
+    boss: Phaser.GameObjects.Container;
+    bossFill: Phaser.GameObjects.Rectangle;
+    bossName: Phaser.GameObjects.Text;
   };
 
   constructor() {
@@ -91,20 +117,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
-    const seed = seedFromQuery(window.location.search) ?? Math.floor(Math.random() * 2 ** 32);
+    const search = window.location.search;
+    const seed = seedFromQuery(search) ?? Math.floor(Math.random() * 2 ** 32);
     this.rng = createRng(seed);
     const save = loadSave(getStorage());
     this.setup = save.setup;
     this.bonuses = bonusesFor(save.powerUps, this.setup.companion);
     this.rerolls = save.powerUps.reroll ?? 0;
     this.resetState();
-    if (debugEnabled(window.location.search)) {
-      this.loadout = { ...this.loadout, ...debugLoadout(window.location.search) };
+    if (debugEnabled(search)) {
+      this.loadout = { ...this.loadout, ...debugLoadout(search) };
       this.stats = computeStats(this.loadout, this.bonuses);
       this.hp = this.stats.maxHp;
+      this.elapsed = debugStartTime(search);
+      this.zone = zoneIndexAt(this.map, this.elapsed);
+      this.godMode = debugGodMode(search);
     }
 
-    this.ground = this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'sand').setOrigin(0).setScrollFactor(0);
+    this.ground = this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, groundTexture(this.map.id, this.zone))
+      .setOrigin(0)
+      .setScrollFactor(0);
     this.scatterDecor();
 
     const center = WORLD_SIZE / 2;
@@ -116,18 +148,24 @@ export class GameScene extends Phaser.Scene {
     this.keys = this.input.keyboard!.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT') as typeof this.keys;
     this.combat = this.createCombat();
     this.companionContext = this.createCompanionContext();
+    this.bossContext = this.createBossContext();
+    this.hostiles = new HostileSystem(this, (damage) => this.hurt(damage * damageMultiplier(this.elapsed)));
     this.syncWeapons();
     this.createHud();
+    this.showZoneBanner();
 
-    if (debugEnabled(window.location.search)) {
+    if (debugEnabled(search)) {
       exposeDebug(() => ({
         elapsed: this.elapsed,
         hp: this.hp,
         maxHp: this.stats.maxHp,
         level: this.xp.level,
         kills: this.kills,
+        zone: this.zone,
         player: { x: this.player.x, y: this.player.y },
         enemies: this.enemies.map((e) => ({ x: e.sprite.x, y: e.sprite.y })),
+        bosses: this.enemies.filter((e) => e.boss).map((e) => ({ name: e.def.name, hp: e.hp, maxHp: e.maxHp })),
+        bossesDefeated: this.bossesDefeated,
         orbs: this.orbs.map((o) => ({ x: o.sprite.x, y: o.sprite.y })),
         loadout: { ...this.loadout },
         state: this.ended ? 'over' : this.scene.isPaused() ? 'levelUp' : 'playing',
@@ -143,18 +181,22 @@ export class GameScene extends Phaser.Scene {
     this.elapsed += dt;
 
     this.movePlayer(dt);
+    if (zoneChanged(this.map, previous, this.elapsed)) this.enterZone(zoneIndexAt(this.map, this.elapsed));
+    this.spawnBosses(previous);
     this.spawnEnemies(dt, previous);
     this.updateEnemies(dt);
     for (const [id, weapon] of this.weapons) weapon.update(dt, this.loadout[id] ?? 1, this.combat);
     this.companion.update(dt, this.companionContext);
     this.updateProjectiles(dt);
+    this.hostiles.update(dt, this.player);
     this.updateOrbs(dt);
 
     this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.regen * dt);
     this.updateHud();
 
     if (this.hp <= 0) return this.endRun(false);
-    if (this.elapsed >= RUN_DURATION) return this.endRun(true);
+    // The Power Cell needs both: the full run time and the final boss down
+    if (this.elapsed >= RUN_DURATION && this.finalBossDefeated) return this.endRun(true);
     if (this.pendingLevelUps > 0) this.openLevelUp();
   }
 
@@ -162,7 +204,14 @@ export class GameScene extends Phaser.Scene {
     this.enemies = [];
     this.orbs = [];
     this.projectiles = [];
+    this.decor = [];
+    this.banner = undefined;
     this.weapons = new Map();
+    this.bossAI = new Map();
+    this.spawnedBosses = new Set();
+    this.bossesDefeated = 0;
+    this.finalBossDefeated = false;
+    this.zone = 0;
     this.aim = { x: 1, y: 0 };
     this.speech = undefined;
     this.loadout = startingLoadout(this.setup.weapon);
@@ -176,6 +225,7 @@ export class GameScene extends Phaser.Scene {
     this.orbsCollected = 0;
     this.spawnTimer = 0;
     this.ended = false;
+    this.godMode = false;
   }
 
   /** The view of the game that weapons get. Getters so they always see live values. */
@@ -195,15 +245,32 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
+  // Spread would copy the getters as frozen values, so the extended contexts inherit from `combat` instead
+
   private createCompanionContext(): CompanionContext {
     const scene = this;
-    // Spread copies getters as plain values, so the live ones are re-declared here
     return Object.create(this.combat, {
       elapsed: { get: () => scene.elapsed },
       level: { get: () => scene.xp.level },
       sprite: { get: () => scene.companionSprite },
       say: { value: (text: string) => scene.say(text) },
     }) as CompanionContext;
+  }
+
+  private createBossContext(): BossContext {
+    const scene = this;
+    return Object.create(this.combat, {
+      elapsed: { get: () => scene.elapsed },
+      spawnMinion: { value: (id: keyof typeof ENEMIES, at: Point) => scene.spawnEnemyAt(ENEMIES[id], at) },
+      spawnFromZone: { value: (at: Point) => scene.spawnEnemyAt(scene.pickZoneEnemy(), at) },
+      fireHostile: {
+        value: (from: Point, angle: number, speed: number, damage: number) => scene.hostiles.fire(from, angle, speed, damage),
+      },
+      hazard: {
+        value: (at: Point, radius: number, delay: number, damage: number, from?: Point) =>
+          scene.hostiles.hazard(at, radius, delay, damage, from),
+      },
+    }) as BossContext;
   }
 
   /** Speech bubble above the companion for a couple of seconds. */
@@ -226,14 +293,102 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // ---- Zones ----
+
   private scatterDecor(): void {
-    for (let i = 0; i < 160; i++) {
-      const texture = this.rng() < 0.4 ? 'palm' : 'rock';
-      this.add.image(randomBetween(this.rng, 0, WORLD_SIZE), randomBetween(this.rng, 0, WORLD_SIZE), texture)
-        .setDepth(DEPTH.decor)
-        .setAlpha(0.9);
-    }
+    for (const image of this.decor) image.destroy();
+    const textures = this.map.zones[this.zone].decor;
+    this.decor = Array.from({ length: 160 }, () =>
+      this.add.image(
+        randomBetween(this.rng, 0, WORLD_SIZE),
+        randomBetween(this.rng, 0, WORLD_SIZE),
+        textures[Math.floor(this.rng() * textures.length)],
+      ).setDepth(DEPTH.decor).setAlpha(0.9),
+    );
   }
+
+  private enterZone(index: number): void {
+    this.zone = index;
+    this.ground.setTexture(groundTexture(this.map.id, index));
+    this.scatterDecor();
+    this.cameras.main.flash(500, 255, 244, 214);
+    this.showZoneBanner();
+  }
+
+  /** Zone name across the top of the screen, plus Daxter's line when he's the companion. */
+  private showZoneBanner(): void {
+    const zone = this.map.zones[this.zone];
+    const daxter = this.setup.companion === 'daxter' || this.setup.companion === 'daxterPants';
+    this.showBanner(zone.name.toUpperCase(), daxter ? `"${zone.quote}"` : undefined, COLORS.accent);
+  }
+
+  private showBanner(title: string, subtitle: string | undefined, color: string): void {
+    this.banner?.destroy();
+    const items: Phaser.GameObjects.GameObject[] = [
+      this.add.text(0, 0, title, { fontFamily: FONT, fontSize: '34px', color, fontStyle: 'bold' }).setOrigin(0.5).setStroke('#1a1a1a', 6),
+    ];
+    if (subtitle) {
+      items.push(this.add.text(0, 36, subtitle, { fontFamily: FONT, fontSize: '17px', color: COLORS.text, fontStyle: 'italic' })
+        .setOrigin(0.5).setStroke('#1a1a1a', 4));
+    }
+    const banner = this.add.container(GAME_WIDTH / 2, 150, items).setScrollFactor(0).setDepth(DEPTH.hud);
+    this.banner = banner;
+    this.tweens.add({
+      targets: banner, alpha: 0, delay: 2500, duration: 600,
+      onComplete: () => {
+        banner.destroy();
+        if (this.banner === banner) this.banner = undefined;
+      },
+    });
+  }
+
+  // ---- Bosses ----
+
+  private spawnBosses(previous: number): void {
+    const due = bossesDue(this.map, previous, this.elapsed);
+    // Debug runs can start past the final boss time: it must still show up or the run can't be won
+    const last = this.map.zones.length - 1;
+    if (this.elapsed >= bossSpawnTime(last) && !this.spawnedBosses.has(last) && !due.includes(last)) due.push(last);
+    for (const zone of due) this.spawnBoss(zone);
+  }
+
+  private spawnBoss(zone: number): void {
+    this.spawnedBosses.add(zone);
+    const def = BOSSES[this.map.zones[zone].boss];
+    const angle = this.rng() * Math.PI * 2;
+    const x = Phaser.Math.Clamp(this.player.x + Math.cos(angle) * BOSS_SPAWN_DISTANCE, 0, WORLD_SIZE);
+    const y = Phaser.Math.Clamp(this.player.y + Math.sin(angle) * BOSS_SPAWN_DISTANCE, 0, WORLD_SIZE);
+    const stats: EnemyStats = { name: def.name, speed: 0, dps: def.dps, radius: def.radius, xp: 0, behavior: 'boss' };
+    const hp = def.hp * bossHpMultiplier(this.elapsed);
+    const enemy: Enemy = {
+      sprite: this.add.image(x, y, def.texture).setDepth(DEPTH.enemy + 0.5),
+      def: stats, hp, maxHp: hp, knockX: 0, knockY: 0, flash: 0, timer: 0, dashing: 0,
+      boss: { def, zone },
+    };
+    this.enemies.push(enemy);
+    this.bossAI.set(enemy, createBossAI(def.id));
+    this.cameras.main.shake(400, 0.006);
+    this.showBanner(`BOSS: ${def.name.toUpperCase()}`, undefined, '#ff6b6b');
+  }
+
+  private defeatBoss(enemy: Enemy): void {
+    const boss = enemy.boss!;
+    this.bossAI.delete(enemy);
+    this.bossesDefeated++;
+    if (boss.zone === this.map.zones.length - 1) this.finalBossDefeated = true;
+    // A shower of orbs around where it fell
+    for (let i = 0; i < boss.def.orbs; i++) {
+      const angle = this.rng() * Math.PI * 2;
+      const distance = 20 + this.rng() * 70;
+      const sprite = this.add.image(enemy.sprite.x + Math.cos(angle) * distance, enemy.sprite.y + Math.sin(angle) * distance, 'orb')
+        .setDepth(DEPTH.orb).setScale(1.3);
+      this.orbs.push({ sprite, value: 2, attracted: false });
+    }
+    this.cameras.main.shake(300, 0.008);
+    this.showBanner(`${boss.def.name.toUpperCase()} DEFEATED!`, undefined, COLORS.accent);
+  }
+
+  // ---- Player ----
 
   private movePlayer(dt: number): void {
     const k = this.keys;
@@ -268,31 +423,58 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Every source of damage to Jak goes through here: armor first, then the companion. */
+  private hurt(amount: number): void {
+    if (this.godMode) return;
+    const taken = this.companion.absorb(amount * (1 - this.stats.armor), this.companionContext);
+    this.hp -= taken;
+    if (taken > 0 && this.hurtFlash <= 0) {
+      this.player.setTint(0xff5555);
+      this.hurtFlash = 0.12;
+    }
+  }
+
+  // ---- Enemies ----
+
+  private pickZoneEnemy(): EnemyDef {
+    return pickEnemy(this.map.zones[this.zone].pool, this.elapsed, this.rng);
+  }
+
   private spawnEnemies(dt: number, previous: number): void {
     this.spawnTimer -= dt;
     while (this.spawnTimer <= 0) {
       this.spawnTimer += spawnInterval(this.elapsed);
-      if (this.enemies.length < MAX_ENEMIES) {
-        this.spawnEnemy(pickEnemy(this.elapsed, this.rng), this.rng() * Math.PI * 2);
-      }
+      this.spawnEnemy(this.pickZoneEnemy(), this.rng() * Math.PI * 2);
     }
 
     // Every minute a ring of Lurkers closes in from all sides
     const horde = hordeSize(previous, this.elapsed);
     if (horde > 0) {
       const offset = this.rng() * Math.PI * 2;
-      for (let i = 0; i < horde; i++) {
-        this.spawnEnemy(pickEnemy(this.elapsed, this.rng), offset + (i / horde) * Math.PI * 2);
-      }
+      for (let i = 0; i < horde; i++) this.spawnEnemy(this.pickZoneEnemy(), offset + (i / horde) * Math.PI * 2);
       this.cameras.main.shake(250, 0.004);
     }
   }
 
+  /** Just outside the visible area, in the direction of `angle`. */
   private spawnEnemy(def: EnemyDef, angle: number): void {
-    const x = Phaser.Math.Clamp(this.player.x + Math.cos(angle) * SPAWN_DISTANCE, 0, WORLD_SIZE);
-    const y = Phaser.Math.Clamp(this.player.y + Math.sin(angle) * SPAWN_DISTANCE, 0, WORLD_SIZE);
-    const sprite = this.add.image(x, y, def.texture).setDepth(DEPTH.enemy);
-    this.enemies.push({ sprite, def, hp: def.hp * hpMultiplier(this.elapsed), knockX: 0, knockY: 0, flash: 0 });
+    this.spawnEnemyAt(def, {
+      x: this.player.x + Math.cos(angle) * SPAWN_DISTANCE,
+      y: this.player.y + Math.sin(angle) * SPAWN_DISTANCE,
+    });
+  }
+
+  private spawnEnemyAt(def: EnemyDef, at: Point): void {
+    if (this.enemies.length >= MAX_ENEMIES) return;
+    const x = Phaser.Math.Clamp(at.x, 0, WORLD_SIZE);
+    const y = Phaser.Math.Clamp(at.y, 0, WORLD_SIZE);
+    const hp = def.hp * hpMultiplier(this.elapsed);
+    this.enemies.push({
+      sprite: this.add.image(x, y, def.texture).setDepth(DEPTH.enemy),
+      def, hp, maxHp: hp, knockX: 0, knockY: 0, flash: 0, dashing: 0,
+      // Random start so chargers and zigzaggers don't all move in sync
+      timer: this.rng() * CHARGE_EVERY,
+    });
   }
 
   private updateEnemies(dt: number): void {
@@ -300,41 +482,70 @@ export class GameScene extends Phaser.Scene {
     const decay = Math.exp(-KNOCKBACK_DECAY * dt);
     for (const enemy of this.enemies) {
       const s = enemy.sprite;
-      const dx = this.player.x - s.x;
-      const dy = this.player.y - s.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      s.x += ((dx / dist) * enemy.def.speed + enemy.knockX) * dt;
-      s.y += ((dy / dist) * enemy.def.speed + enemy.knockY) * dt;
-      enemy.knockX *= decay;
-      enemy.knockY *= decay;
-      s.setFlipX(dx < 0);
+      const ai = this.bossAI.get(enemy);
+      if (ai) {
+        ai.update(dt, enemy, this.bossContext);
+      } else {
+        this.moveEnemy(enemy, dt, decay);
+      }
 
       if (enemy.flash > 0) {
         enemy.flash -= dt;
         if (enemy.flash <= 0) s.clearTint();
       }
-      if (dist < enemy.def.radius + PLAYER_RADIUS) contactDps += enemy.def.dps;
+      if (Math.hypot(this.player.x - s.x, this.player.y - s.y) < enemy.def.radius + PLAYER_RADIUS) contactDps += enemy.def.dps;
     }
 
-    if (contactDps > 0) {
-      const damage = contactDps * damageMultiplier(this.elapsed) * (1 - this.stats.armor) * dt;
-      const taken = this.companion.absorb(damage, this.companionContext);
-      this.hp -= taken;
-      if (taken > 0 && this.hurtFlash <= 0) {
-        this.player.setTint(0xff5555);
-        this.hurtFlash = 0.12;
-      }
-    }
+    if (contactDps > 0) this.hurt(contactDps * damageMultiplier(this.elapsed) * dt);
   }
 
+  private moveEnemy(enemy: Enemy, dt: number, decay: number): void {
+    const s = enemy.sprite;
+    const dx = this.player.x - s.x;
+    const dy = this.player.y - s.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    let dirX = dx / dist;
+    let dirY = dy / dist;
+    let speed = enemy.def.speed;
+    enemy.timer += dt;
+
+    if (enemy.def.behavior === 'zigzag') {
+      // Sideways sway, perpendicular to the direction of Jak
+      const sway = Math.sin(enemy.timer * 5) * 0.9;
+      dirX -= dy / dist * sway;
+      dirY += dx / dist * sway;
+    } else if (enemy.def.behavior === 'charge') {
+      if (enemy.dashing > 0) {
+        enemy.dashing -= dt;
+        speed *= CHARGE_SPEED;
+      } else if (enemy.timer >= CHARGE_EVERY) {
+        enemy.timer = 0;
+        enemy.dashing = CHARGE_TIME;
+      }
+    }
+
+    s.x += (dirX * speed + enemy.knockX) * dt;
+    s.y += (dirY * speed + enemy.knockY) * dt;
+    enemy.knockX *= decay;
+    enemy.knockY *= decay;
+    s.setFlipX(dx < 0);
+  }
+
+  /**
+   * Closest enemies to `from`. Bosses rank as if BOSS_AIM_BIAS px closer, so auto-aim goes for them
+   * instead of spending every shot on the swarm around Jak.
+   */
   private nearestEnemies(count: number, from: Point, maxDistance = Infinity): Enemy[] {
     return this.enemies
       .map((enemy) => ({ enemy, dist: Math.hypot(enemy.sprite.x - from.x, enemy.sprite.y - from.y) }))
       .filter((e) => e.dist <= maxDistance)
-      .sort((a, b) => a.dist - b.dist)
+      .map((e) => ({ ...e, rank: e.enemy.boss ? e.dist - BOSS_AIM_BIAS : e.dist }))
+      .sort((a, b) => a.rank - b.rank)
       .slice(0, count)
       .map((e) => e.enemy);
   }
+
+  // ---- Jak's attacks ----
 
   private fireProjectile(spec: ProjectileSpec): void {
     const sprite = this.add.image(spec.x, spec.y, spec.texture).setDepth(DEPTH.fx);
@@ -400,7 +611,8 @@ export class GameScene extends Phaser.Scene {
     enemy.hp -= amount;
     enemy.sprite.setTint(0xffaaaa);
     enemy.flash = 0.08;
-    if (knockFrom) {
+    // Bosses don't get pushed around
+    if (knockFrom && !enemy.boss) {
       const dx = enemy.sprite.x - knockFrom.x;
       const dy = enemy.sprite.y - knockFrom.y;
       const dist = Math.hypot(dx, dy) || 1;
@@ -411,11 +623,16 @@ export class GameScene extends Phaser.Scene {
 
     this.enemies.splice(this.enemies.indexOf(enemy), 1);
     this.kills++;
+    if (enemy.boss) this.defeatBoss(enemy);
     const { x, y } = enemy.sprite;
     enemy.sprite.destroy();
-    const orb = this.add.image(x, y, 'orb').setDepth(DEPTH.orb).setScale(enemy.def.xp > 1 ? 1.3 : 1);
-    this.orbs.push({ sprite: orb, value: enemy.def.xp, attracted: false });
+    if (enemy.def.xp > 0) {
+      const orb = this.add.image(x, y, 'orb').setDepth(DEPTH.orb).setScale(enemy.def.xp > 1 ? 1.3 : 1);
+      this.orbs.push({ sprite: orb, value: enemy.def.xp, attracted: false });
+    }
   }
+
+  // ---- Orbs and levels ----
 
   private updateOrbs(dt: number): void {
     for (let i = this.orbs.length - 1; i >= 0; i--) {
@@ -487,16 +704,21 @@ export class GameScene extends Phaser.Scene {
 
   private endRun(won: boolean): void {
     this.ended = true;
+    this.banner?.destroy();
+    this.speech?.destroy();
     const result: RunResult = {
       won,
       time: Math.min(this.elapsed, RUN_DURATION),
       kills: this.kills,
       level: this.xp.level,
+      bossesDefeated: this.bossesDefeated,
       orbs: this.orbsCollected,
     };
     this.scene.pause();
     this.scene.launch('GameOver', result);
   }
+
+  // ---- HUD ----
 
   private createHud(): void {
     const fixed = <T extends Phaser.GameObjects.Components.ScrollFactor & Phaser.GameObjects.Components.Depth>(obj: T) =>
@@ -515,7 +737,13 @@ export class GameScene extends Phaser.Scene {
     const counters = fixed(this.add.text(GAME_WIDTH - 16, 22, '', { ...style, align: 'right' }).setOrigin(1, 0).setStroke('#000000', 4));
     const loadout = fixed(this.add.container(16, GAME_HEIGHT - 66));
 
-    this.hud = { hpFill, xpFill, level, timer, counters, loadout };
+    // Boss health bar under the timer, hidden while no boss is alive
+    const bossName = this.add.text(0, 0, '', { ...style, fontSize: '14px', color: '#ff6b6b' }).setOrigin(0.5, 0).setStroke('#000000', 4);
+    const bossBack = this.add.rectangle(-150, 20, 300, 12, 0x000000, 0.6).setOrigin(0);
+    const bossFill = this.add.rectangle(-149, 21, 298, 10, 0xe5383b).setOrigin(0);
+    const boss = fixed(this.add.container(GAME_WIDTH / 2, 56, [bossName, bossBack, bossFill]).setVisible(false));
+
+    this.hud = { hpFill, xpFill, level, timer, counters, loadout, boss, bossFill, bossName };
     this.renderLoadout();
   }
 
@@ -543,7 +771,15 @@ export class GameScene extends Phaser.Scene {
     this.hud.hpFill.scaleX = Math.max(0, this.hp / this.stats.maxHp);
     this.hud.xpFill.scaleX = this.xp.xp / xpToNextLevel(this.xp.level);
     this.hud.level.setText(`LV ${this.xp.level}`);
-    this.hud.timer.setText(formatTime(RUN_DURATION - this.elapsed));
+    const overtime = this.elapsed >= RUN_DURATION && !this.finalBossDefeated;
+    this.hud.timer.setText(overtime ? 'DEFEAT THE BOSS!' : formatTime(RUN_DURATION - this.elapsed));
     this.hud.counters.setText(`Lurkers: ${this.kills}\nOrbs: ${this.orbsCollected}`);
+
+    const boss = this.enemies.find((e) => e.boss);
+    this.hud.boss.setVisible(!!boss);
+    if (boss) {
+      this.hud.bossName.setText(boss.def.name);
+      this.hud.bossFill.scaleX = Math.max(0, boss.hp / boss.maxHp);
+    }
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { POWER_CELL_BONUS } from '../../src/logic/meta';
+import { BOSS_BONUS, POWER_CELL_BONUS, type RunSummary } from '../../src/logic/meta';
 import {
   buy, defaultSave, LEGACY_BEST_TIME_KEY, loadSave, parseSave, priceOf, recordRun, SAVE_KEY, writeSave,
   type KeyValueStore, type SaveData,
@@ -26,8 +26,8 @@ const blockedStore: KeyValueStore = {
 };
 
 const rich = (batteries = 1000): SaveData => ({ ...defaultSave(), batteries });
-const run = (overrides: Partial<{ won: boolean; time: number; kills: number; level: number }> = {}) => ({
-  won: false, time: 0, kills: 0, level: 1, ...overrides,
+const run = (overrides: Partial<RunSummary> = {}): RunSummary => ({
+  won: false, time: 0, kills: 0, level: 1, bossesDefeated: 0, ...overrides,
 });
 
 describe('loading and saving', () => {
@@ -140,6 +140,10 @@ describe('recordRun', () => {
     expect(earned).toBe(3 + 2);
     expect(save.batteries).toBe(5);
     expect(save.runs).toBe(1);
+  });
+
+  it('pays a bonus per boss defeated', () => {
+    expect(recordRun(defaultSave(), run({ bossesDefeated: 2 })).earned).toBe(2 * BOSS_BONUS);
   });
 
   it('pays the Power Cell bonus and completes the challenge once', () => {

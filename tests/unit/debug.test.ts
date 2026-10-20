@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { debugEnabled, debugLoadout } from '../../src/debug';
+import { debugEnabled, debugGodMode, debugLoadout, debugStartTime } from '../../src/debug';
 
 describe('debugEnabled', () => {
   it('is on only with the debug flag', () => {
@@ -20,5 +20,22 @@ describe('debugLoadout', () => {
 
   it('skips unknown items and invalid levels', () => {
     expect(debugLoadout('?items=bfg:3,arc:9,blaster:0,vulcan:x,peacemaker:2')).toEqual({ peacemaker: 2 });
+  });
+});
+
+describe('debugStartTime', () => {
+  it('reads ?t= in seconds and ignores bad values', () => {
+    expect(debugStartTime('?t=270')).toBe(270);
+    expect(debugStartTime('?t=-5')).toBe(0);
+    expect(debugStartTime('?t=abc')).toBe(0);
+    expect(debugStartTime('?debug')).toBe(0);
+  });
+});
+
+describe('debugGodMode', () => {
+  it('needs both debug and god', () => {
+    expect(debugGodMode('?debug&god')).toBe(true);
+    expect(debugGodMode('?god')).toBe(false);
+    expect(debugGodMode('?debug')).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { groundTexture, MAPS, type GroundStyle } from '../logic/maps';
 import type { SkinId } from '../logic/meta';
 
 interface JakLook {
@@ -37,6 +38,13 @@ function drawJak(g: Phaser.GameObjects.Graphics, look: JakLook): void {
   g.fillStyle(look.goggles).fillRect(8, 7, 16, 3);
   if (look.goatee) g.fillStyle(look.goatee).fillTriangle(13, 17, 19, 17, 16, 22);
   g.fillStyle(look.eyes).fillCircle(13, 13, look.horns ? 2.2 : 1.5).fillCircle(19, 13, look.horns ? 2.2 : 1.5);
+}
+
+function drawGround(g: Phaser.GameObjects.Graphics, style: GroundStyle): void {
+  g.fillStyle(style.base).fillRect(0, 0, 64, 64);
+  for (let i = 0; i < 18; i++) {
+    g.fillStyle(i % 2 ? style.speckA : style.speckB).fillCircle((i * 37) % 64, (i * 23) % 64, 1.5);
+  }
 }
 
 function drawDaxter(g: Phaser.GameObjects.Graphics): void {
@@ -136,6 +144,102 @@ export class BootScene extends Phaser.Scene {
       g.fillStyle(0x9d4edd).fillCircle(12, 12, 8);
       g.fillStyle(0xe0aaff).fillCircle(12, 12, 4);
     });
+
+    this.texture('flyingLurker', 30, 20, (g) => {
+      g.fillStyle(0x5a3478).fillTriangle(0, 4, 12, 10, 4, 16).fillTriangle(30, 4, 18, 10, 26, 16); // wings
+      g.fillStyle(0x7b4fa0).fillEllipse(15, 11, 14, 14);
+      g.fillStyle(0xffd60a).fillCircle(12, 10, 2).fillCircle(18, 10, 2);
+    });
+
+    this.texture('boneArmor', 36, 38, (g) => {
+      g.fillStyle(0x4a2f66).fillEllipse(18, 22, 32, 30);
+      g.fillStyle(0xe9e3d0).fillRoundedRect(6, 12, 24, 14, 5); // bone plate
+      g.fillStyle(0xe9e3d0).fillTriangle(6, 12, 9, 0, 14, 11).fillTriangle(22, 11, 27, 0, 30, 12); // tusks
+      g.fillStyle(0xe5383b).fillCircle(13, 18, 2.5).fillCircle(23, 18, 2.5);
+    });
+
+    this.texture('spider', 22, 16, (g) => {
+      g.lineStyle(2, 0x1a1a1a);
+      for (const x of [3, 7, 15, 19]) g.lineBetween(11, 9, x, x < 11 ? 2 : 15).lineBetween(11, 9, x, x < 11 ? 15 : 2);
+      g.fillStyle(0x2b1d1d).fillEllipse(11, 9, 12, 10);
+      g.fillStyle(0xff5400).fillCircle(9, 7, 1.5).fillCircle(13, 7, 1.5);
+    });
+
+    this.texture('darkEcoPlant', 84, 84, (g) => {
+      g.fillStyle(0x2d6a4f).fillEllipse(20, 66, 36, 16).fillEllipse(64, 66, 36, 16); // leaves
+      g.fillStyle(0x40916c).fillRect(38, 40, 8, 34); // stem
+      g.fillStyle(0x3c096c).fillCircle(42, 32, 26); // head
+      g.fillStyle(0x10002b).fillEllipse(42, 38, 30, 16); // maw
+      g.fillStyle(0xe0aaff).fillTriangle(30, 32, 34, 40, 38, 32).fillTriangle(46, 32, 50, 40, 54, 32); // teeth
+      g.fillStyle(0x9d4edd).fillCircle(32, 20, 4).fillCircle(52, 20, 4);
+    });
+
+    this.texture('klaww', 96, 96, (g) => {
+      g.fillStyle(0x6f4518).fillEllipse(48, 58, 84, 70); // body
+      g.fillStyle(0x99582a).fillEllipse(48, 64, 50, 40); // belly
+      g.fillStyle(0xdda15e).fillTriangle(18, 30, 10, 2, 32, 24).fillTriangle(78, 30, 86, 2, 64, 24); // horns
+      g.fillStyle(0x6f4518).fillCircle(10, 60, 14).fillCircle(86, 60, 14); // fists
+      g.fillStyle(0xffd60a).fillCircle(36, 40, 5).fillCircle(60, 40, 5);
+      g.fillStyle(0x1a1a1a).fillRect(34, 52, 28, 5);
+    });
+
+    this.texture('giantSpider', 100, 76, (g) => {
+      g.lineStyle(5, 0x1a1010);
+      for (const [x, y] of [[4, 10], [0, 38], [6, 70], [96, 10], [100, 38], [94, 70]] as const) g.lineBetween(50, 40, x, y);
+      g.fillStyle(0x3b1f1f).fillEllipse(50, 48, 52, 40); // abdomen
+      g.fillStyle(0x8c2f1a).fillEllipse(50, 48, 30, 18); // lava stripe
+      g.fillStyle(0x2b1d1d).fillCircle(50, 24, 16); // head
+      g.fillStyle(0xff5400).fillCircle(44, 20, 3).fillCircle(56, 20, 3).fillCircle(47, 27, 2).fillCircle(53, 27, 2);
+    });
+
+    this.texture('golMaiaRobot', 120, 120, (g) => {
+      g.fillStyle(0x495057).fillRect(30, 80, 18, 40).fillRect(72, 80, 18, 40); // legs
+      g.fillStyle(0x6c757d).fillRoundedRect(14, 34, 92, 56, 14); // body
+      g.fillStyle(0x343a40).fillRoundedRect(36, 4, 48, 36, 10); // cockpit
+      g.fillStyle(0x7b2cbf).fillCircle(60, 62, 16); // dark eco core
+      g.fillStyle(0xe0aaff).fillCircle(60, 62, 7);
+      g.fillStyle(0xc77dff).fillCircle(50, 20, 6).fillCircle(70, 20, 6); // Gol and Maia
+      g.fillStyle(0x495057).fillCircle(8, 50, 12).fillCircle(112, 50, 12); // shoulders
+    });
+
+    this.texture('darkEcoBall', 14, 14, (g) => {
+      g.fillStyle(0x3c096c).fillCircle(7, 7, 7);
+      g.fillStyle(0xc77dff).fillCircle(7, 7, 3);
+    });
+
+    this.texture('boulder', 26, 24, (g) => {
+      g.fillStyle(0x6c584c).fillEllipse(13, 12, 26, 22);
+      g.fillStyle(0x8d7966).fillEllipse(10, 9, 12, 8);
+    });
+
+    this.texture('hut', 56, 56, (g) => {
+      g.fillStyle(0x8d99ae).fillRect(8, 26, 40, 28); // walls
+      g.fillStyle(0x3a86ff).fillTriangle(2, 28, 28, 4, 54, 28); // blue roof
+      g.fillStyle(0x2b2d42).fillRect(23, 38, 10, 16); // door
+    });
+
+    this.texture('lavaPool', 70, 40, (g) => {
+      g.fillStyle(0x2e2420).fillEllipse(35, 20, 70, 40);
+      g.fillStyle(0xe85d04).fillEllipse(35, 20, 56, 28);
+      g.fillStyle(0xffba08).fillEllipse(30, 17, 26, 10);
+    });
+
+    this.texture('darkRock', 34, 26, (g) => {
+      g.fillStyle(0x2b2d42).fillEllipse(17, 15, 32, 22);
+      g.fillStyle(0x4a4e69).fillEllipse(13, 11, 14, 8);
+    });
+
+    this.texture('pillar', 30, 70, (g) => {
+      g.fillStyle(0x4a4e69).fillRect(4, 6, 22, 60);
+      g.fillStyle(0x6c63a8).fillRect(0, 0, 30, 8).fillRect(0, 62, 30, 8);
+      g.fillStyle(0x80ffdb).fillCircle(15, 34, 4); // precursor light
+    });
+
+    for (const map of Object.values(MAPS)) {
+      map.zones.forEach((zone, i) => {
+        this.texture(groundTexture(map.id, i), 64, 64, (g) => drawGround(g, zone.ground));
+      });
+    }
 
     this.texture('sand', 64, 64, (g) => {
       g.fillStyle(0xe6d3a3).fillRect(0, 0, 64, 64);

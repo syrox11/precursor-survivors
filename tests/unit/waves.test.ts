@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../../src/logic/rng';
-import { damageMultiplier, hordeSize, hpMultiplier, pickEnemy, spawnInterval, unlockedEnemies } from '../../src/logic/waves';
+import {
+  activeEntries, damageMultiplier, hordeSize, hpMultiplier, pickEnemy, spawnInterval, type SpawnEntry,
+} from '../../src/logic/waves';
 
 describe('spawnInterval', () => {
   it('starts at one enemy every 0.55 seconds', () => {
@@ -52,22 +54,20 @@ describe('hordeSize', () => {
   });
 });
 
-describe('enemy unlocks', () => {
-  it('only spawns Lurker Puppies at the start', () => {
-    expect(unlockedEnemies(0).map((e) => e.id)).toEqual(['lurkerPuppy']);
+describe('spawn pools', () => {
+  const pool: SpawnEntry[] = [{ enemy: 'lurkerPuppy', weight: 3 }, { enemy: 'lurkerCrab', weight: 1, after: 60 }];
+
+  it('ignores entries that have not started yet', () => {
+    expect(activeEntries(pool, 59).map((e) => e.enemy)).toEqual(['lurkerPuppy']);
     const rng = createRng(5);
-    for (let i = 0; i < 100; i++) expect(pickEnemy(10, rng).id).toBe('lurkerPuppy');
+    for (let i = 0; i < 100; i++) expect(pickEnemy(pool, 10, rng).id).toBe('lurkerPuppy');
   });
 
-  it('adds Babaks at 1:30 and Lurker Crabs at 3:30', () => {
-    expect(unlockedEnemies(89).map((e) => e.id)).toEqual(['lurkerPuppy']);
-    expect(unlockedEnemies(90).map((e) => e.id)).toEqual(['lurkerPuppy', 'babak']);
-    expect(unlockedEnemies(210).map((e) => e.id)).toEqual(['lurkerPuppy', 'babak', 'lurkerCrab']);
-  });
-
-  it('spawns every unlocked type eventually', () => {
+  it('spawns every active entry eventually, roughly by weight', () => {
     const rng = createRng(11);
-    const seen = new Set(Array.from({ length: 300 }, () => pickEnemy(300, rng).id));
-    expect(seen).toEqual(new Set(['lurkerPuppy', 'babak', 'lurkerCrab']));
+    const picks = Array.from({ length: 2000 }, () => pickEnemy(pool, 60, rng).id);
+    const crabs = picks.filter((id) => id === 'lurkerCrab').length / picks.length;
+    expect(crabs).toBeGreaterThan(0.2);
+    expect(crabs).toBeLessThan(0.3);
   });
 });

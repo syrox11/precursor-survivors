@@ -8,8 +8,11 @@ export interface DebugSnapshot {
   maxHp: number;
   level: number;
   kills: number;
+  zone: number;
   player: Point;
   enemies: Point[];
+  bosses: { name: string; hp: number; maxHp: number }[];
+  bossesDefeated: number;
   orbs: Point[];
   loadout: Loadout;
   state: 'playing' | 'levelUp' | 'over';
@@ -41,6 +44,17 @@ export function debugLoadout(search: string): Loadout | undefined {
     }
   }
   return loadout;
+}
+
+/** Start the run this many seconds in, from `?t=270` (debug only), to jump to a zone or boss. */
+export function debugStartTime(search: string): number {
+  const t = Number(new URLSearchParams(search).get('t'));
+  return Number.isFinite(t) && t > 0 ? t : 0;
+}
+
+/** `?debug&god`: Jak takes no damage, so tests can reach late-game states. */
+export function debugGodMode(search: string): boolean {
+  return debugEnabled(search) && new URLSearchParams(search).has('god');
 }
 
 export function exposeDebug(snapshot: () => DebugSnapshot): void {

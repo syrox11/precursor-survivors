@@ -1,6 +1,7 @@
 import type * as Phaser from 'phaser';
 import type { Rng } from '../logic/rng';
 import type { PlayerStats } from '../logic/stats';
+import type { BossDef } from '../logic/maps';
 import type { EnemyDef } from '../logic/waves';
 
 export interface Point {
@@ -8,13 +9,30 @@ export interface Point {
   y: number;
 }
 
+/** What every enemy has, regular or boss. Regular enemies use their EnemyDef directly. */
+export interface EnemyStats {
+  name: string;
+  speed: number;
+  dps: number;
+  radius: number;
+  xp: number;
+  behavior: EnemyDef['behavior'] | 'boss';
+}
+
 export interface Enemy {
   sprite: Phaser.GameObjects.Image;
-  def: EnemyDef;
+  def: EnemyStats;
   hp: number;
+  maxHp: number;
   knockX: number;
   knockY: number;
   flash: number;
+  /** Per-enemy clock for behaviours (zigzag phase, charge timing). */
+  timer: number;
+  /** Seconds left in a charge dash. */
+  dashing: number;
+  /** Set for bosses: their definition and the zone they belong to. */
+  boss?: { def: BossDef; zone: number };
 }
 
 export interface ProjectileSpec {

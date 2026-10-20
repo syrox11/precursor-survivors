@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/syrox11/precursor-survivors/actions/workflows/ci.yml/badge.svg)](https://github.com/syrox11/precursor-survivors/actions/workflows/ci.yml)
 
-A browser game in the style of *Vampire Survivors*, set in the world of *Jak and Daxter*. Survive the Lurker horde on Sentinel Beach for 10 minutes to earn a Power Cell.
+A browser game in the style of *Vampire Survivors*, set in the world of *Jak and Daxter*. Fight through the zones of Jak's world for 10 minutes, beat their bosses and earn a Power Cell.
 
 **▶ Play it: [syrox11.github.io/precursor-survivors](https://syrox11.github.io/precursor-survivors/)**
 
@@ -37,11 +37,26 @@ A browser game in the style of *Vampire Survivors*, set in the world of *Jak and
 | Eco Amplifier | Bigger attack area |
 | Keira's Tune-up | Shorter weapon cooldowns |
 
-Enemies get tougher and more numerous over time: Lurker Puppies from the start, Babaks from 1:30 and Lurker Crabs from 3:30. From minute 2, a horde surrounds you every minute.
+Enemies get tougher and more numerous over time, and from minute 2 a horde surrounds you every minute.
+
+### Maps
+
+Each map follows one game. Every 2:30 the zone changes (ground, scenery and enemies), and 30 seconds before each change the zone's boss shows up. A boss you don't kill follows you into the next zone. To win, survive the 10 minutes **and** defeat the final boss.
+
+**The Precursor Legacy (Jak 1)**
+
+| Time | Zone | Enemies | Boss (at) |
+|------|------|---------|-----------|
+| 0:00 | Sentinel Beach | Lurker Puppies, Lurker Crabs | Dark Eco Plant (2:00): spits dark eco |
+| 2:30 | Blue Sage's Village | Babaks, Flying Lurkers (zigzag) | Klaww (4:30): throws boulders where you stand |
+| 5:00 | Volcanic Crater | Bone Armor Lurkers (charge), Lava Spiders | Giant Lava Spider (7:00): lunges and hatches spiders |
+| 7:30 | Gol and Maia's Citadel | All of the above | Gol and Maia's Precursor Robot (9:30): rings of dark eco, calls reinforcements |
+
+Maps for *Jak II* and *Jak 3* are next.
 
 ### Between runs
 
-Every run pays out **Precursor batteries** (time survived, Lurkers defeated, a bonus for the Power Cell). Spend them in the **shop**, then set up your next run:
+Every run pays out **Precursor batteries** (time survived, Lurkers defeated, bosses beaten, a bonus for the Power Cell). Spend them in the **shop**, then set up your next run:
 
 - **Starting weapon:** start with any weapon you have unlocked instead of the Spin Kick.
 - **Companion:** each one rides with Jak and actually helps.
@@ -64,7 +79,9 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [x] **Phase 1:** core loop (movement, Lurkers, orbs, levels, eco upgrades, one map)
 - [x] **Phase 2:** weapons from the Morph Gun (*Jak II* and *Jak 3*), weapon and passive slots, harder difficulty curve with hordes
 - [x] **Phase 3:** meta progression: Precursor batteries, shop, permanent power-ups, starting weapon, companions, bans, skins and challenges
-- [ ] **Phase 4:** more maps and bosses, Daxter commentary
+- [x] **Phase 4a:** zones and bosses; the Jak 1 map
+- [ ] **Phase 4b:** the Jak II map (Haven City, sewers... Krimzon Guards and Metal Heads)
+- [ ] **Phase 4c:** the Jak 3 map (Spargus, the wasteland, the Precursor temple...)
 - [ ] **Phase 5:** E2E tests with Playwright on the canvas, performance checks
 
 ## Tech
@@ -72,7 +89,7 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [Phaser 4](https://phaser.io/) + TypeScript, bundled with Vite
 - Game rules (XP curve, items, stats, waves, save data, shop prices, rewards) live in `src/logic/` as plain functions with no Phaser dependency, so they are unit-tested with Vitest
 - Seeded random generator: add `?seed=123` to the URL to get a reproducible run (same spawns, same upgrade offers)
-- Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, and `?debug&items=arc:3,scatter:2` starts the run with those items
+- Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, `?debug&items=arc:3,scatter:2` starts the run with those items, `?debug&t=270` starts 270 seconds in (to jump to a zone or boss) and `?debug&god` makes Jak take no damage
 - GitHub Actions: typecheck, unit tests and build on every push; deploys to GitHub Pages from `main`
 
 ```bash
