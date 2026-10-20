@@ -18,6 +18,7 @@ export interface DebugSnapshot {
   /** Chests, oracles and characters waiting on the map. */
   field: { kind: 'chest' | 'oracle' | 'npc'; x: number; y: number }[];
   loadout: Loadout;
+  eco: { light: number; dark: number; active: 'light' | 'dark' | null };
   state: 'playing' | 'levelUp' | 'over';
 }
 
@@ -64,6 +65,12 @@ export function debugGodMode(search: string): boolean {
 export function debugMap(search: string): MapId | undefined {
   const map = new URLSearchParams(search).get('map');
   return map && map in MAPS ? (map as MapId) : undefined;
+}
+
+/** `?eco=100` starts the run with both eco meters at that value (debug only). */
+export function debugEco(search: string): number {
+  const value = Number(new URLSearchParams(search).get('eco'));
+  return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 export function exposeDebug(snapshot: () => DebugSnapshot): void {

@@ -9,12 +9,15 @@ interface Ally {
   fireTimer: number;
   /** Where around Jak this ally stands. */
   slot: number;
+  /** Turrets stay where they were placed. */
+  stationary: boolean;
 }
 
 const STYLES: Record<AllyStyle, { every: number; damage: number }> = {
   rifle: { every: 0.5, damage: 14 },
   blaster: { every: 0.22, damage: 7 },
   peacemaker: { every: 1.6, damage: 40 },
+  turret: { every: 0.35, damage: 9 },
 };
 
 const DEPTH = 4;
@@ -28,7 +31,17 @@ export class Allies {
 
   add(texture: string, style: AllyStyle, seconds: number, at: { x: number; y: number }): void {
     const sprite = this.scene.add.image(at.x, at.y, texture).setDepth(DEPTH);
-    this.allies.push({ sprite, style, timeLeft: seconds, fireTimer: 0, slot: this.allies.length });
+    this.allies.push({ sprite, style, timeLeft: seconds, fireTimer: 0, slot: this.allies.length, stationary: style === 'turret' });
+  }
+
+  /** Stand a little behind and to the side of Jak. */
+  private follow(ally: Ally, c: Combat, dt: number): void {
+    const angle = Math.PI * 0.75 + ally.slot * 1.3;
+    const tx = c.player.x + Math.cos(angle) * 45;
+    const ty = c.player.y + Math.sin(angle) * 45;
+    const lerp = Math.min(1, dt * 6);
+    ally.sprite.x += (tx - ally.sprite.x) * lerp;
+    ally.sprite.y += (ty - ally.sprite.y) * lerp;
   }
 
   update(dt: number, c: Combat, elapsed: number): void {
@@ -43,13 +56,7 @@ export class Allies {
         continue;
       }
 
-      // Stand a little behind and to the side of Jak
-      const angle = Math.PI * 0.75 + ally.slot * 1.3;
-      const tx = c.player.x + Math.cos(angle) * 45;
-      const ty = c.player.y + Math.sin(angle) * 45;
-      const lerp = Math.min(1, dt * 6);
-      ally.sprite.x += (tx - ally.sprite.x) * lerp;
-      ally.sprite.y += (ty - ally.sprite.y) * lerp;
+      if (!ally.stationary) this.follow(ally, c, dt);
 
       ally.fireTimer -= dt;
       if (ally.fireTimer > 0) continue;
@@ -59,7 +66,12 @@ export class Allies {
       ally.fireTimer = style.every;
       const aim = Math.atan2(target.sprite.y - ally.sprite.y, target.sprite.x - ally.sprite.x);
       ally.sprite.setFlipX(target.sprite.x < ally.sprite.x);
-      if (ally.style === 'peacemaker') {
+      if (ally.style === 'turret') {
+        c.fire({
+          texture: 'blast', x: ally.sprite.x, y: ally.sprite.y, angle: aim, speed: 480, life: 1, radius: 7,
+          damage: style.damage * scale,
+        });
+      } else if (ally.style === 'peacemaker') {
         c.fire({
           texture: 'peacemakerOrb', x: ally.sprite.x, y: ally.sprite.y, angle: aim, speed: 300, life: 1.4, radius: 11, damage: 0,
           explosion: { radius: 80, damage: style.damage * scale, color: 0x9d4edd },

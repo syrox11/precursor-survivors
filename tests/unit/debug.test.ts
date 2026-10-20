@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { debugEnabled, debugGodMode, debugLoadout, debugMap, debugStartTime } from '../../src/debug';
+import { debugEco, debugEnabled, debugGodMode, debugLoadout, debugMap, debugStartTime } from '../../src/debug';
 
 describe('debugEnabled', () => {
   it('is on only with the debug flag', () => {
@@ -45,5 +45,13 @@ describe('debugMap', () => {
     expect(debugMap('?map=jak2')).toBe('jak2');
     expect(debugMap('?map=jak9')).toBeUndefined();
     expect(debugMap('?debug')).toBeUndefined();
+  });
+});
+
+describe('debugEco', () => {
+  it('reads ?eco= and ignores bad values', () => {
+    expect(debugEco('?eco=100')).toBe(100);
+    expect(debugEco('?eco=-1')).toBe(0);
+    expect(debugEco('?debug')).toBe(0);
   });
 });

@@ -11,6 +11,7 @@ A browser game in the style of *Vampire Survivors*, set in the world of *Jak and
 ## How to play
 
 - **Move:** WASD or arrow keys. Attacks are automatic.
+- **Light Jak / Dark Jak:** `E` / `Q` when that eco meter is full, then `1`-`4` for its powers.
 - Defeated Lurkers drop **Precursor orbs**. Collect them to level up.
 - On every level up, pick one of three upgrades. You can carry **4 weapons and 4 passives**, each up to level 5.
 
@@ -84,7 +85,20 @@ Each map follows one game. Every 2:30 the zone changes (ground, scenery and enem
 
 Their gifts fit the character: Keira upgrades a weapon, Samos heals you and raises your max health, Torn, Sig, Ashelin and Damas fight next to you for 30 seconds, Vin raises an eco shield, the Yellow Sage wipes the screen with yellow eco, the Gambler hands out a random gift...
 
+Chests can also hold **light** or **dark eco** (fills that meter), **red eco** (more damage for a while) or **yellow eco**, which turns into a turret that keeps shooting for 15 seconds.
+
 Every hit shows its damage, and wounded enemies show a health bar.
+
+### Light Jak and Dark Jak
+
+Two separate meters fill as you pick up light and dark eco wisps, dropped by some enemies (bosses always drop several). With a meter full, press **E** for Light Jak or **Q** for Dark Jak. The form lasts while its meter drains; each power spends part of it.
+
+| Key | Light Jak (takes half damage) | Dark Jak (+30% damage) |
+|-----|------------------------------|------------------------|
+| 1 | Heal: restore half your health | **Dark Bomb**: a huge blast around you, spends all the dark eco and ends the form |
+| 2 | Flash Freeze: every enemy stops for 4s | Dark Blast: dark lightning jumps between enemies for 6s |
+| 3 | Light Shield: no damage for 5s | Invisibility: enemies lose you for 6s |
+| 4 | Light Flight: +80% speed for 6s | Dark Strike: charge and fire a wave straight ahead (three per full meter) |
 
 ### Between runs
 
@@ -115,7 +129,7 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [x] **Phase 4b:** the Jak II map, unlocked by winning the first one
 - [x] **Phase 4c:** the Jak 3 map, unlocked by winning the second one
 - [x] **Phase 5a:** chests, oracles, saga characters, damage numbers and health bars
-- [ ] **Phase 5b:** Light Jak and Dark Jak: eco meters and activated powers
+- [x] **Phase 5b:** Light Jak and Dark Jak: eco meters and activated powers; red and yellow eco
 - [ ] **Phase 5c:** more weapons
 - [ ] **Phase 6:** E2E tests with Playwright on the canvas, performance checks
 
@@ -124,7 +138,7 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [Phaser 4](https://phaser.io/) + TypeScript, bundled with Vite
 - Game rules (XP curve, items, stats, waves, save data, shop prices, rewards) live in `src/logic/` as plain functions with no Phaser dependency, so they are unit-tested with Vitest
 - Seeded random generator: add `?seed=123` to the URL to get a reproducible run (same spawns, same upgrade offers)
-- Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, `?debug&items=arc:3,scatter:2` starts the run with those items, `?debug&t=270` starts 270 seconds in (to jump to a zone or boss) and `?debug&god` makes Jak take no damage and `?debug&map=jak2` plays a map even if it is locked
+- Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, `?debug&items=arc:3,scatter:2` starts the run with those items, `?debug&t=270` starts 270 seconds in (to jump to a zone or boss), `?debug&god` makes Jak take no damage, `?debug&map=jak2` plays a map even if it is locked, and `?debug&eco=100` starts with both eco meters full
 - GitHub Actions: typecheck, unit tests and build on every push; deploys to GitHub Pages from `main`
 
 ```bash

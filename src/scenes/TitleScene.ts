@@ -32,8 +32,11 @@ export class TitleScene extends Phaser.Scene {
     addButton(this, cx - 115, 385, 'PLAY', () => this.scene.start('Setup'), { width: 200 });
     addButton(this, cx + 115, 385, 'SHOP', () => this.scene.start('Shop'), { width: 200, color: 0x4cc9f0 });
 
-    this.add.text(cx, 440, 'SPACE to play   ·   Move: WASD / arrow keys   ·   Attacks are automatic', {
-      fontFamily: FONT, fontSize: '15px', color: COLORS.text,
+    this.add.text(cx, 445, [
+      'SPACE to play   ·   Move: WASD / arrow keys   ·   Attacks are automatic',
+      'E / Q: Light / Dark Jak when the meter is full   ·   1 - 4: their powers',
+    ].join('\n'), {
+      fontFamily: FONT, fontSize: '15px', color: COLORS.text, align: 'center', lineSpacing: 4,
     }).setOrigin(0.5).setAlpha(0.8);
 
     this.add.text(cx, GAME_HEIGHT - 20, 'Fan project, not affiliated with or endorsed by Sony Interactive Entertainment or Naughty Dog.', {

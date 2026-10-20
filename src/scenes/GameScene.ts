@@ -6,7 +6,7 @@ import { HostileSystem } from '../combat/hostiles';
 import { createWeapon, type Weapon } from '../combat/weapons';
 import type { Combat, Enemy, EnemyStats, Point, ProjectileSpec } from '../combat/types';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage, PLAYER_RADIUS, RUN_DURATION, WORLD_SIZE } from '../config';
-import { debugEnabled, debugGodMode, debugLoadout, debugMap, debugStartTime, exposeDebug } from '../debug';
+import { debugEco, debugEnabled, debugGodMode, debugLoadout, debugMap, debugStartTime, exposeDebug } from '../debug';
 import {
   applyItem, ITEMS, levelOf, ownedOfKind, rollChoices, STARTING_LOADOUT, startingLoadout,
   type ItemId, type Loadout, type WeaponId,
@@ -23,8 +23,13 @@ import {
   damageMultiplier, ENEMIES, hordeSize, hpMultiplier, MAX_ENEMIES, pickEnemy, spawnInterval, type EnemyDef,
 } from '../logic/waves';
 import { gainXp, INITIAL_XP, xpToNextLevel, type XpState } from '../logic/xp';
+import {
+  ABILITIES, ABILITY_TUNING, addEco, BOSS_WISPS, CHEST_ECO, DARK_DAMAGE_BONUS, drain, EMPTY_ECO, LIGHT_DAMAGE_TAKEN,
+  METER_MAX, rollWisp, transform, useAbility, WISP_VALUE, type AbilityId, type EcoMode, type EcoState,
+} from '../logic/eco';
+import { darkBlastTick, darkBomb, darkStrike } from '../combat/darkPowers';
 import { describeGift, gambleGift, type Gift, type NpcDef } from '../logic/npcs';
-import { HEALTH_PICKUP, JET_BOARD, type ChestContent } from '../logic/pickups';
+import { HEALTH_PICKUP, JET_BOARD, RED_ECO, YELLOW_ECO_TURRET_SECONDS, type ChestContent } from '../logic/pickups';
 import { DamageNumbers } from '../ui/damageNumbers';
 import { Indicators } from '../ui/indicators';
 import { Field } from '../world/field';
@@ -33,7 +38,9 @@ import type { LevelUpData } from './LevelUpScene';
 
 interface Orb {
   sprite: Phaser.GameObjects.Image;
+  /** XP for Precursor orbs, meter points for eco wisps. */
   value: number;
+  kind: 'xp' | EcoMode;
   attracted: boolean;
 }
 
@@ -62,7 +69,7 @@ const DEPTH = { decor: 1, orb: 2, enemy: 3, player: 4, companion: 5, fx: 6, hud:
 
 export class GameScene extends Phaser.Scene {
   private rng!: Rng;
-  private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', Phaser.Input.Keyboard.Key>;
+  private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'Q' | 'E' | 'ONE' | 'TWO' | 'THREE' | 'FOUR', Phaser.Input.Keyboard.Key>;
 
   private setup!: RunSetup;
   private bonuses: Bonuses = NO_BONUSES;
@@ -119,6 +126,17 @@ export class GameScene extends Phaser.Scene {
   /** Timed buffs from pickups and characters; "until" values are run seconds. */
   private buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
 
+  // Light Jak / Dark Jak
+  private eco: EcoState = EMPTY_ECO;
+  private frozenUntil = 0;
+  private invisibleUntil = 0;
+  private darkBlastUntil = 0;
+  private darkBlastTimer = 0;
+  /** Seconds left charging a Dark Strike, or 0. */
+  private strikeCharge = 0;
+  /** Keys pressed to pick a level-up card must not also fire an ability on resume. */
+  private abilityKeysBlockedUntil = 0;
+
   private hud!: {
     hpFill: Phaser.GameObjects.Rectangle;
     xpFill: Phaser.GameObjects.Rectangle;
@@ -129,6 +147,12 @@ export class GameScene extends Phaser.Scene {
     boss: Phaser.GameObjects.Container;
     bossFill: Phaser.GameObjects.Rectangle;
     bossName: Phaser.GameObjects.Text;
+    lightFill: Phaser.GameObjects.Rectangle;
+    darkFill: Phaser.GameObjects.Rectangle;
+    ecoHint: Phaser.GameObjects.Text;
+    abilities: Phaser.GameObjects.Container;
+    /** What the ability bar currently shows, so it is only rebuilt when that changes. */
+    abilitiesKey: string;
   };
 
   constructor() {
@@ -153,6 +177,8 @@ export class GameScene extends Phaser.Scene {
       this.elapsed = debugStartTime(search);
       this.zone = zoneIndexAt(this.map, this.elapsed);
       this.godMode = debugGodMode(search);
+      const eco = Math.min(METER_MAX, debugEco(search));
+      this.eco = { light: eco, dark: eco, active: null };
     }
 
     this.ground = this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, groundTexture(this.map.id, this.zone))
@@ -166,7 +192,11 @@ export class GameScene extends Phaser.Scene {
     this.companion = createCompanion(this.setup.companion);
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE).startFollow(this.player, true, 0.15, 0.15);
 
-    this.keys = this.input.keyboard!.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT') as typeof this.keys;
+    // The 1-3 keys pick level-up cards; don't let that same press cast an ability right after
+    this.events.on('resume', () => {
+      this.abilityKeysBlockedUntil = this.elapsed + 0.25;
+    });
+    this.keys = this.input.keyboard!.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,Q,E,ONE,TWO,THREE,FOUR') as typeof this.keys;
     this.combat = this.createCombat();
     this.companionContext = this.createCompanionContext();
     this.bossContext = this.createBossContext();
@@ -209,6 +239,7 @@ export class GameScene extends Phaser.Scene {
         orbs: this.orbs.map((o) => ({ x: o.sprite.x, y: o.sprite.y })),
         field: this.field.snapshot(),
         loadout: { ...this.loadout },
+        eco: { ...this.eco },
         state: this.ended ? 'over' : this.scene.isPaused() ? 'levelUp' : 'playing',
       }));
     }
@@ -221,17 +252,20 @@ export class GameScene extends Phaser.Scene {
     const previous = this.elapsed;
     this.elapsed += dt;
 
+    this.updateEcoForm(dt);
     this.refreshStats();
     this.movePlayer(dt);
     if (zoneChanged(this.map, previous, this.elapsed)) this.enterZone(zoneIndexAt(this.map, this.elapsed));
     this.spawnBosses(previous);
-    this.spawnEnemies(dt, previous);
-    this.updateEnemies(dt);
+    // Flash Freeze stops the world: no spawns, no enemy movement, no enemy fire
+    const frozen = this.elapsed < this.frozenUntil;
+    if (!frozen) this.spawnEnemies(dt, previous);
+    this.updateEnemies(dt, frozen);
     for (const [id, weapon] of this.weapons) weapon.update(dt, this.loadout[id] ?? 1, this.combat);
     this.companion.update(dt, this.companionContext);
     this.allies.update(dt, this.combat, this.elapsed);
     this.updateProjectiles(dt);
-    this.hostiles.update(dt, this.player);
+    if (!frozen) this.hostiles.update(dt, this.player);
     this.updateOrbs(dt);
     this.field.update(dt, previous, this.elapsed, this.player);
 
@@ -252,6 +286,8 @@ export class GameScene extends Phaser.Scene {
     const stats = computeStats(this.loadout, this.bonuses);
     if (this.elapsed < this.buffs.damageUntil) stats.damageMultiplier *= this.buffs.damage;
     if (this.elapsed < this.buffs.speedUntil) stats.moveSpeed *= this.buffs.speed;
+    if (this.eco.active === 'light') stats.armor = 1 - (1 - stats.armor) * LIGHT_DAMAGE_TAKEN;
+    if (this.eco.active === 'dark') stats.damageMultiplier *= DARK_DAMAGE_BONUS;
     this.stats = stats;
     this.jetBoard.setVisible(this.elapsed < this.buffs.boardUntil);
     const shielded = this.elapsed < this.buffs.invulnerableUntil;
@@ -287,6 +323,13 @@ export class GameScene extends Phaser.Scene {
     this.pendingGifts = [];
     this.bonusBatteries = 0;
     this.buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
+    this.eco = EMPTY_ECO;
+    this.frozenUntil = 0;
+    this.invisibleUntil = 0;
+    this.darkBlastUntil = 0;
+    this.darkBlastTimer = 0;
+    this.strikeCharge = 0;
+    this.abilityKeysBlockedUntil = 0;
   }
 
   /** The view of the game that weapons get. Getters so they always see live values. */
@@ -444,7 +487,11 @@ export class GameScene extends Phaser.Scene {
       const distance = 20 + this.rng() * 70;
       const sprite = this.add.image(enemy.sprite.x + Math.cos(angle) * distance, enemy.sprite.y + Math.sin(angle) * distance, 'orb')
         .setDepth(DEPTH.orb).setScale(1.3);
-      this.orbs.push({ sprite, value: 2, attracted: false });
+      this.orbs.push({ sprite, value: 2, kind: 'xp', attracted: false });
+    }
+    for (let i = 0; i < BOSS_WISPS * 2; i++) {
+      const angle = (i / (BOSS_WISPS * 2)) * Math.PI * 2;
+      this.dropWisp(i % 2 ? 'light' : 'dark', { x: enemy.sprite.x + Math.cos(angle) * 50, y: enemy.sprite.y + Math.sin(angle) * 50 });
     }
     this.cameras.main.shake(300, 0.008);
     this.field.dropChest({ x: enemy.sprite.x, y: enemy.sprite.y });
@@ -468,6 +515,125 @@ export class GameScene extends Phaser.Scene {
         this.buffs.speedUntil = this.elapsed + JET_BOARD.seconds;
         this.buffs.boardUntil = this.buffs.speedUntil;
         this.floatText(at, 'JET-BOARD!', '#ffb703');
+        break;
+      case 'lightEco':
+      case 'darkEco': {
+        const mode: EcoMode = content === 'lightEco' ? 'light' : 'dark';
+        this.eco = addEco(this.eco, mode, CHEST_ECO);
+        this.floatText(at, mode === 'light' ? 'LIGHT ECO!' : 'DARK ECO!', mode === 'light' ? '#90e0ef' : '#c77dff');
+        break;
+      }
+      case 'redEco':
+        this.buffs.damage = RED_ECO.damageMultiplier;
+        this.buffs.damageUntil = this.elapsed + RED_ECO.seconds;
+        this.floatText(at, 'RED ECO!', '#e5383b');
+        break;
+      case 'yellowEco':
+        this.allies.add('ecoTurret', 'turret', YELLOW_ECO_TURRET_SECONDS, at);
+        this.floatText(at, 'YELLOW ECO TURRET!', '#ffd60a');
+        break;
+    }
+  }
+
+  // ---- Light Jak and Dark Jak ----
+
+  /** Transform keys, ability keys 1-4, the meter drain and anything an ability keeps doing over time. */
+  private updateEcoForm(dt: number): void {
+    const k = this.keys;
+    const JustDown = Phaser.Input.Keyboard.JustDown;
+    // Read every key every frame, so a press can never sit waiting and fire later by surprise
+    const keysOpen = this.elapsed >= this.abilityKeysBlockedUntil;
+    const pressedMode: EcoMode | null = JustDown(k.E) ? 'light' : JustDown(k.Q) ? 'dark' : null;
+    const slot = [k.ONE, k.TWO, k.THREE, k.FOUR].map((key) => JustDown(key)).indexOf(true);
+
+    if (keysOpen && !this.eco.active) {
+      const mode = pressedMode;
+      if (mode) {
+        const next = transform(this.eco, mode);
+        if (next.active) {
+          this.eco = next;
+          this.setForm(mode);
+        }
+      }
+    }
+
+    if (this.eco.active) {
+      if (keysOpen && slot >= 0) {
+        const { state, ability } = useAbility(this.eco, slot);
+        this.eco = state;
+        if (ability) this.useEcoAbility(ability.id);
+      }
+      this.eco = drain(this.eco, dt);
+      if (!this.eco.active) this.setForm(null);
+    }
+
+    // Dark Blast keeps striking for a while after it is cast
+    if (this.elapsed < this.darkBlastUntil) {
+      this.darkBlastTimer -= dt;
+      if (this.darkBlastTimer <= 0) {
+        this.darkBlastTimer = 0.35;
+        darkBlastTick(this.combat, this.darkPowerScale());
+      }
+    }
+    if (this.strikeCharge > 0) {
+      this.strikeCharge -= dt;
+      if (this.strikeCharge <= 0) {
+        darkStrike(this.combat, Math.atan2(this.aim.y, this.aim.x), this.darkPowerScale());
+        this.player.clearTint();
+      }
+    }
+    this.player.setAlpha(this.elapsed < this.invisibleUntil ? 0.35 : 1);
+  }
+
+  private darkPowerScale(): number {
+    return (1 + this.elapsed / 120) * this.stats.damageMultiplier;
+  }
+
+  /** Swaps Jak's look for the form, and back to the chosen skin when it ends. */
+  private setForm(mode: EcoMode | null): void {
+    const texture = mode === 'light' ? SKINS.lightJak.texture : mode === 'dark' ? SKINS.darkJak.texture : SKINS[this.setup.skin].texture;
+    this.player.setTexture(texture);
+    if (mode) {
+      this.cameras.main.flash(250, mode === 'light' ? 144 : 123, mode === 'light' ? 224 : 44, mode === 'light' ? 239 : 191);
+      this.showBanner(mode === 'light' ? 'LIGHT JAK' : 'DARK JAK', 'Abilities: keys 1 - 4', mode === 'light' ? '#90e0ef' : '#c77dff');
+    }
+  }
+
+  private useEcoAbility(id: AbilityId): void {
+    const t = ABILITY_TUNING;
+    const light = ABILITIES.light.find((a) => a.id === id);
+    const name = (light ?? ABILITIES.dark.find((a) => a.id === id))!.name;
+    this.floatText(this.player, name.toUpperCase(), light ? '#90e0ef' : '#c77dff');
+    switch (id) {
+      case 'heal':
+        this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * t.healShare);
+        break;
+      case 'timeStop':
+        this.frozenUntil = this.elapsed + t.timeStopSeconds;
+        this.cameras.main.flash(300, 144, 224, 239);
+        break;
+      case 'shield':
+        this.buffs.invulnerableUntil = this.elapsed + t.shieldSeconds;
+        break;
+      case 'wings':
+        this.buffs.speed = t.wingsSpeed;
+        this.buffs.speedUntil = this.elapsed + t.wingsSeconds;
+        break;
+      case 'darkBomb':
+        darkBomb(this.combat, this.player, this.darkPowerScale());
+        this.setForm(null);
+        break;
+      case 'darkBlast':
+        this.darkBlastUntil = this.elapsed + t.darkBlastSeconds;
+        this.darkBlastTimer = 0;
+        break;
+      case 'invisibility':
+        this.invisibleUntil = this.elapsed + t.invisibilitySeconds;
+        break;
+      case 'darkStrike':
+        // Jak glows while charging, then the wave fires where he faces
+        this.strikeCharge = t.darkStrikeCharge;
+        this.player.setTint(0xc77dff);
         break;
     }
   }
@@ -612,7 +778,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Every source of damage to Jak goes through here: armor first, then the companion. */
   private hurt(amount: number): void {
-    if (this.godMode || this.elapsed < this.buffs.invulnerableUntil) return;
+    if (this.godMode || this.elapsed < this.buffs.invulnerableUntil || this.elapsed < this.invisibleUntil) return;
     const taken = this.companion.absorb(amount * (1 - this.stats.armor), this.companionContext);
     this.hp -= taken;
     if (taken > 0 && this.hurtFlash <= 0) {
@@ -664,26 +830,34 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private updateEnemies(dt: number): void {
+  private updateEnemies(dt: number, frozen: boolean): void {
     let contactDps = 0;
     const decay = Math.exp(-KNOCKBACK_DECAY * dt);
+    const invisible = this.elapsed < this.invisibleUntil;
     for (const enemy of this.enemies) {
       const s = enemy.sprite;
-      const ai = this.bossAI.get(enemy);
-      if (ai) {
-        ai.update(dt, enemy, this.bossContext);
-      } else {
-        this.moveEnemy(enemy, dt, decay);
-      }
-
       if (enemy.flash > 0) {
         enemy.flash -= dt;
         if (enemy.flash <= 0) s.clearTint();
       }
+      if (frozen) continue;
+
+      const ai = this.bossAI.get(enemy);
+      if (invisible && !enemy.boss) {
+        // They've lost Jak: wander off in their own direction
+        enemy.timer += dt;
+        const heading = enemy.timer * 0.7 + s.x * 0.01;
+        s.x += Math.cos(heading) * enemy.def.speed * 0.5 * dt;
+        s.y += Math.sin(heading) * enemy.def.speed * 0.5 * dt;
+      } else if (ai) {
+        ai.update(dt, enemy, this.bossContext);
+      } else {
+        this.moveEnemy(enemy, dt, decay);
+      }
       if (Math.hypot(this.player.x - s.x, this.player.y - s.y) < enemy.def.radius + PLAYER_RADIUS) contactDps += enemy.def.dps;
     }
 
-    if (contactDps > 0) this.hurt(contactDps * damageMultiplier(this.elapsed) * dt);
+    if (contactDps > 0 && !invisible) this.hurt(contactDps * damageMultiplier(this.elapsed) * dt);
   }
 
   private moveEnemy(enemy: Enemy, dt: number, decay: number): void {
@@ -830,8 +1004,15 @@ export class GameScene extends Phaser.Scene {
     enemy.sprite.destroy();
     if (enemy.def.xp > 0) {
       const orb = this.add.image(x, y, 'orb').setDepth(DEPTH.orb).setScale(enemy.def.xp > 1 ? 1.3 : 1);
-      this.orbs.push({ sprite: orb, value: enemy.def.xp, attracted: false });
+      this.orbs.push({ sprite: orb, value: enemy.def.xp, kind: 'xp', attracted: false });
+      const wisp = rollWisp(this.rng);
+      if (wisp) this.dropWisp(wisp, { x: x + 10, y: y - 6 });
     }
+  }
+
+  private dropWisp(mode: EcoMode, at: Point): void {
+    const sprite = this.add.image(at.x, at.y, mode === 'light' ? 'lightWisp' : 'darkWisp').setDepth(DEPTH.orb);
+    this.orbs.push({ sprite, value: WISP_VALUE, kind: mode, attracted: false });
   }
 
   // ---- Orbs and levels ----
@@ -849,7 +1030,8 @@ export class GameScene extends Phaser.Scene {
       if (dist < PLAYER_RADIUS + 6) {
         orb.sprite.destroy();
         this.orbs.splice(i, 1);
-        this.collectOrb(orb.value);
+        if (orb.kind === 'xp') this.collectOrb(orb.value);
+        else this.eco = addEco(this.eco, orb.kind, orb.value);
         continue;
       }
       const step = Math.min(dist, ORB_SPEED * dt);
@@ -949,7 +1131,21 @@ export class GameScene extends Phaser.Scene {
     const bossFill = this.add.rectangle(-149, 21, 298, 10, 0xe5383b).setOrigin(0);
     const boss = fixed(this.add.container(GAME_WIDTH / 2, 56, [bossName, bossBack, bossFill]).setVisible(false));
 
-    this.hud = { hpFill, xpFill, level, timer, counters, loadout, boss, bossFill, bossName };
+    // Eco meters under the level: light (E) and dark (Q)
+    const meter = (y: number, color: number, key: string) => {
+      fixed(this.add.text(16, y - 2, key, { ...style, fontSize: '12px' }).setStroke('#000000', 3));
+      fixed(this.add.rectangle(30, y, 124, 10, 0x000000, 0.6).setOrigin(0));
+      return fixed(this.add.rectangle(32, y + 2, 120, 6, color).setOrigin(0));
+    };
+    const lightFill = meter(74, 0x90e0ef, 'E');
+    const darkFill = meter(90, 0x9d4edd, 'Q');
+    const ecoHint = fixed(this.add.text(160, 80, '', { ...style, fontSize: '12px', color: COLORS.accent }).setStroke('#000000', 3));
+    const abilities = fixed(this.add.container(GAME_WIDTH / 2, GAME_HEIGHT - 40));
+
+    this.hud = {
+      hpFill, xpFill, level, timer, counters, loadout, boss, bossFill, bossName,
+      lightFill, darkFill, ecoHint, abilities, abilitiesKey: '',
+    };
     this.renderLoadout();
   }
 
@@ -987,5 +1183,36 @@ export class GameScene extends Phaser.Scene {
       this.hud.bossName.setText(boss.def.name);
       this.hud.bossFill.scaleX = Math.max(0, boss.hp / boss.maxHp);
     }
+
+    this.hud.lightFill.scaleX = this.eco.light / METER_MAX;
+    this.hud.darkFill.scaleX = this.eco.dark / METER_MAX;
+    const ready = [this.eco.light >= METER_MAX && 'E: Light Jak', this.eco.dark >= METER_MAX && 'Q: Dark Jak'].filter(Boolean);
+    this.hud.ecoHint.setText(this.eco.active ? '' : ready.join('\n'));
+    this.renderAbilities();
+  }
+
+  /** Bottom centre while transformed: the four abilities with their key, name and cost. */
+  private renderAbilities(): void {
+    const mode = this.eco.active;
+    const affordable = mode ? ABILITIES[mode].map((a) => this.eco[mode] >= a.cost) : [];
+    const key = `${mode}:${affordable.join(',')}`;
+    if (key === this.hud.abilitiesKey) return;
+    this.hud.abilitiesKey = key;
+
+    const box = this.hud.abilities;
+    box.removeAll(true);
+    if (!mode) return;
+    const color = mode === 'light' ? 0x90e0ef : 0xc77dff;
+    ABILITIES[mode].forEach((ability, i) => {
+      const x = (i - 1.5) * 150;
+      const alpha = affordable[i] ? 1 : 0.35;
+      box.add(this.add.rectangle(x, 0, 140, 44, COLORS.panel, 0.9).setStrokeStyle(2, color, alpha));
+      box.add(this.add.text(x, -9, `[${i + 1}] ${ability.name}`, {
+        fontFamily: FONT, fontSize: '13px', color: COLORS.text, fontStyle: 'bold',
+      }).setOrigin(0.5).setAlpha(alpha));
+      box.add(this.add.text(x, 10, ability.endsForm ? 'ALL ECO' : `${ability.cost} eco`, {
+        fontFamily: FONT, fontSize: '11px', color: COLORS.accent,
+      }).setOrigin(0.5).setAlpha(alpha));
+    });
   }
 }

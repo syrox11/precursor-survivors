@@ -1,16 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { ZONE_DURATION } from '../../src/logic/maps';
-import { CHEST_EVERY, chestDue, crossed, FIRST_CHEST, NPC_AT, rollChest, zoneEventDue } from '../../src/logic/pickups';
+import {
+  CHEST_EVERY, CHEST_WEIGHTS, chestDue, crossed, FIRST_CHEST, NPC_AT, rollChest, zoneEventDue, type ChestContent,
+} from '../../src/logic/pickups';
 import { createRng } from '../../src/logic/rng';
 
 describe('rollChest', () => {
   it('gives every kind of content, roughly by weight', () => {
     const rng = createRng(4);
-    const counts = { health: 0, magnet: 0, jetBoard: 0 };
-    for (let i = 0; i < 3000; i++) counts[rollChest(rng)]++;
-    expect(counts.health / 3000).toBeCloseTo(0.4, 1);
-    expect(counts.magnet).toBeGreaterThan(0);
-    expect(counts.jetBoard).toBeGreaterThan(0);
+    const counts = Object.fromEntries(Object.keys(CHEST_WEIGHTS).map((k) => [k, 0])) as Record<ChestContent, number>;
+    for (let i = 0; i < 6000; i++) counts[rollChest(rng)]++;
+    const total = Object.values(CHEST_WEIGHTS).reduce((a, b) => a + b, 0);
+    for (const [content, weight] of Object.entries(CHEST_WEIGHTS) as [ChestContent, number][]) {
+      expect(counts[content] / 6000).toBeCloseTo(weight / total, 1);
+    }
   });
 });
 

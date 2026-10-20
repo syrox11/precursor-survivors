@@ -1,13 +1,18 @@
 import { ZONE_DURATION } from './maps';
 import type { Rng } from './rng';
 
-export type ChestContent = 'health' | 'magnet' | 'jetBoard';
+export type ChestContent = 'health' | 'magnet' | 'jetBoard' | 'lightEco' | 'darkEco' | 'redEco' | 'yellowEco';
 
-export const CHEST_WEIGHTS: Record<ChestContent, number> = { health: 4, magnet: 3, jetBoard: 3 };
+export const CHEST_WEIGHTS: Record<ChestContent, number> = {
+  health: 3, magnet: 3, jetBoard: 2, lightEco: 2, darkEco: 2, redEco: 2, yellowEco: 2,
+};
 
 /** Share of max health a health pickup restores. */
 export const HEALTH_PICKUP = 0.4;
 export const JET_BOARD = { speedMultiplier: 1.6, seconds: 10 };
+export const RED_ECO = { damageMultiplier: 1.5, seconds: 15 };
+/** Yellow eco turns into a turret that stays where the chest was. */
+export const YELLOW_ECO_TURRET_SECONDS = 15;
 
 export const FIRST_CHEST = 20;
 export const CHEST_EVERY = 35;

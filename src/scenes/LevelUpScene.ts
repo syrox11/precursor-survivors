@@ -14,6 +14,8 @@ export interface LevelUpData {
   onChoose: (id: ItemId) => void;
 }
 
+const KEY_GRACE_MS = 400;
+
 /** Overlay shown on top of the paused game. Pick with a click or the 1/2/3 keys; R rerolls. */
 export class LevelUpScene extends Phaser.Scene {
   private data_!: LevelUpData;
@@ -42,7 +44,10 @@ export class LevelUpScene extends Phaser.Scene {
     this.cards = this.add.container(0, 0);
     this.renderCards();
 
+    // Keys 1-4 also cast Light/Dark Jak abilities: ignore presses that land as the overlay pops up
+    const openedAt = this.time.now;
     this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
+      if (this.time.now - openedAt < KEY_GRACE_MS) return;
       if (event.key.toLowerCase() === 'r') return this.reroll();
       const index = Number(event.key) - 1;
       if (index >= 0 && index < this.choices.length) this.choose(this.choices[index]);

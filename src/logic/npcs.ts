@@ -6,7 +6,8 @@ export type NpcId =
   | 'torn' | 'sig' | 'ashelin' | 'brutter' | 'tess' | 'vin'
   | 'kleiver' | 'damas' | 'precursors';
 
-export type AllyStyle = 'rifle' | 'blaster' | 'peacemaker';
+/** turret: the yellow eco turret from chests; it stays put. */
+export type AllyStyle = 'rifle' | 'blaster' | 'peacemaker' | 'turret';
 
 /** What a character gives you when you reach them. */
 export type Gift =

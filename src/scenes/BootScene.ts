@@ -544,6 +544,25 @@ export class BootScene extends Phaser.Scene {
       g.fillStyle(0x80ffdb, 0.3).fillCircle(20, 14, 18);
     });
 
+    this.texture('lightWisp', 16, 16, (g) => {
+      g.fillStyle(0x90e0ef, 0.4).fillCircle(8, 8, 8);
+      g.fillStyle(0xffffff).fillCircle(8, 8, 4);
+    });
+
+    this.texture('darkWisp', 16, 16, (g) => {
+      g.fillStyle(0x7b2cbf, 0.5).fillCircle(8, 8, 8);
+      g.fillStyle(0x240046).fillCircle(8, 8, 4.5);
+      g.fillStyle(0xe0aaff).fillCircle(7, 7, 1.5);
+    });
+
+    this.texture('ecoTurret', 30, 34, (g) => {
+      g.fillStyle(0x495057).fillRect(6, 24, 18, 10); // base
+      g.fillStyle(0x6c757d).fillRect(13, 12, 4, 14);
+      g.fillStyle(0xffd60a, 0.4).fillCircle(15, 10, 10);
+      g.fillStyle(0xffd60a).fillCircle(15, 10, 6); // yellow eco core
+      g.fillStyle(0xffffff).fillCircle(15, 10, 2);
+    });
+
     this.texture('jetBoardRide', 44, 12, (g) => {
       g.fillStyle(0x3a86ff).fillRoundedRect(0, 2, 44, 8, 4);
       g.fillStyle(0xffd60a).fillRect(6, 4, 32, 3);
