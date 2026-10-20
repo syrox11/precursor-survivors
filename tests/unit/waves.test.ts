@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../../src/logic/rng';
 import {
-  activeEntries, damageMultiplier, hordeSize, hpMultiplier, pickEnemy, spawnInterval, type SpawnEntry,
+  activeEntries, damageMultiplier, ENDLESS_BOSS_EVERY, ENDLESS_SPAWN_FLOOR, endlessDamageMultiplier, endlessHordeSize,
+  endlessHpMultiplier, endlessSpawnInterval, hordeSize, hpMultiplier, pickEnemy, spawnInterval, type SpawnEntry,
 } from '../../src/logic/waves';
 
 describe('spawnInterval', () => {
@@ -69,5 +70,35 @@ describe('spawn pools', () => {
     const crabs = picks.filter((id) => id === 'lurkerCrab').length / picks.length;
     expect(crabs).toBeGreaterThan(0.2);
     expect(crabs).toBeLessThan(0.3);
+  });
+});
+
+describe('endless mode', () => {
+  it('adds +100% HP and +50% damage per minute on top of the normal scaling', () => {
+    expect(endlessHpMultiplier(0)).toBe(1);
+    expect(endlessHpMultiplier(60)).toBe(2);
+    expect(endlessHpMultiplier(180)).toBe(4);
+    expect(endlessDamageMultiplier(120)).toBe(2);
+  });
+
+  it('ignores time before the Power Cell', () => {
+    expect(endlessHpMultiplier(-30)).toBe(1);
+  });
+
+  it('spawns faster than the normal floor, down to its own floor', () => {
+    expect(endlessSpawnInterval(0)).toBeCloseTo(0.07);
+    expect(endlessSpawnInterval(60)).toBeLessThan(0.07);
+    expect(endlessSpawnInterval(10_000)).toBe(ENDLESS_SPAWN_FLOOR);
+  });
+
+  it('sends a bigger horde every 20 seconds', () => {
+    expect(endlessHordeSize(0, 19.9)).toBe(0);
+    expect(endlessHordeSize(19.98, 20.01)).toBe(30);
+    expect(endlessHordeSize(20.01, 20.03)).toBe(0);
+    expect(endlessHordeSize(39.99, 40.01)).toBe(38);
+  });
+
+  it('brings a boss back every 30 seconds', () => {
+    expect(ENDLESS_BOSS_EVERY).toBe(30);
   });
 });

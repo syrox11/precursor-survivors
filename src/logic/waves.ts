@@ -171,3 +171,32 @@ export function pickEnemy(pool: readonly SpawnEntry[], elapsed: number, rng: Rng
   }
   return ENEMIES[active[active.length - 1].enemy];
 }
+
+// ---- Endless mode: everything below counts from the moment the Power Cell is earned ----
+
+export const ENDLESS_BOSS_EVERY = 30;
+export const ENDLESS_HORDE_EVERY = 20;
+export const ENDLESS_MAX_ENEMIES = 650;
+export const ENDLESS_SPAWN_FLOOR = 0.04;
+
+/** Extra enemy HP on top of the normal scaling: +100% per minute of endless mode. */
+export function endlessHpMultiplier(sinceVictory: number): number {
+  return 1 + Math.max(0, sinceVictory) / 60;
+}
+
+/** Extra enemy damage on top of the normal scaling: +50% per minute of endless mode. */
+export function endlessDamageMultiplier(sinceVictory: number): number {
+  return 1 + Math.max(0, sinceVictory) / 120;
+}
+
+/** Spawns keep speeding up past the normal floor. */
+export function endlessSpawnInterval(sinceVictory: number): number {
+  return Math.max(ENDLESS_SPAWN_FLOOR, 0.07 * Math.pow(0.9, sinceVictory / 30));
+}
+
+/** A horde every ENDLESS_HORDE_EVERY seconds, each one bigger: 30, 38, 46... 0 when none is due this step. */
+export function endlessHordeSize(previous: number, sinceVictory: number): number {
+  const wave = Math.floor(sinceVictory / ENDLESS_HORDE_EVERY);
+  if (wave < 1 || wave === Math.floor(previous / ENDLESS_HORDE_EVERY)) return 0;
+  return 30 + 8 * (wave - 1);
+}

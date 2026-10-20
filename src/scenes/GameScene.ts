@@ -21,7 +21,9 @@ import { createRng, randomBetween, seedFromQuery, type Rng } from '../logic/rng'
 import { loadSave, type RunSetup } from '../logic/save';
 import { computeStats, type PlayerStats } from '../logic/stats';
 import {
-  damageMultiplier, ENEMIES, hordeSize, hpMultiplier, MAX_ENEMIES, pickEnemy, spawnInterval, type EnemyDef,
+  damageMultiplier, ENDLESS_BOSS_EVERY, ENDLESS_HORDE_EVERY, ENDLESS_MAX_ENEMIES, endlessDamageMultiplier, endlessHordeSize,
+  endlessHpMultiplier, endlessSpawnInterval, ENEMIES, hordeSize, hpMultiplier, MAX_ENEMIES, pickEnemy, spawnInterval,
+  type EnemyDef,
 } from '../logic/waves';
 import { gainXp, INITIAL_XP, xpToNextLevel, type XpState } from '../logic/xp';
 import {
@@ -68,7 +70,6 @@ const KNOCKBACK_DECAY = 8;
 const SPAWN_DISTANCE = Math.hypot(GAME_WIDTH, GAME_HEIGHT) / 2 + 40;
 const BOSS_SPAWN_DISTANCE = 380;
 const BOSS_AIM_BIAS = 250;
-const ENDLESS_BOSS_EVERY = 90;
 const CHARGE_EVERY = 3;
 const CHARGE_TIME = 0.45;
 const CHARGE_SPEED = 3.2;
@@ -123,6 +124,8 @@ export class GameScene extends Phaser.Scene {
   /** Power Cell earned; the run is now endless. */
   private victory = false;
   private nextEndlessBossAt = 0;
+  /** Run time when the Power Cell was earned; endless difficulty counts from here. */
+  private victoryAt = 0;
 
   private field!: Field;
   private allies!: Allies;
@@ -228,7 +231,7 @@ export class GameScene extends Phaser.Scene {
     this.combat = this.createCombat();
     this.companionContext = this.createCompanionContext();
     this.bossContext = this.createBossContext();
-    this.hostiles = new HostileSystem(this, (damage) => this.hurt(damage * damageMultiplier(this.elapsed)));
+    this.hostiles = new HostileSystem(this, (damage) => this.hurt(damage * this.enemyDamageMultiplier()));
     this.syncWeapons();
     this.createHud();
     this.showZoneBanner();
@@ -359,6 +362,7 @@ export class GameScene extends Phaser.Scene {
     this.godMode = false;
     this.victory = false;
     this.nextEndlessBossAt = 0;
+    this.victoryAt = 0;
     this.pendingGifts = [];
     this.bonusBatteries = 0;
     this.buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
@@ -511,7 +515,7 @@ export class GameScene extends Phaser.Scene {
     const x = Phaser.Math.Clamp(this.player.x + Math.cos(angle) * BOSS_SPAWN_DISTANCE, 0, WORLD_SIZE);
     const y = Phaser.Math.Clamp(this.player.y + Math.sin(angle) * BOSS_SPAWN_DISTANCE, 0, WORLD_SIZE);
     const stats: EnemyStats = { name: def.name, speed: 0, dps: def.dps, radius: def.radius, xp: 0, behavior: 'boss' };
-    const hp = def.hp * bossHpMultiplier(this.elapsed);
+    const hp = def.hp * bossHpMultiplier(this.elapsed) * endlessHpMultiplier(this.sinceVictory());
     const enemy: Enemy = {
       sprite: this.add.image(x, y, def.texture).setDepth(DEPTH.enemy + 0.5),
       def: stats, hp, maxHp: hp, knockX: 0, knockY: 0, flash: 0, timer: 0, dashing: 0, stunned: 0,
@@ -558,12 +562,27 @@ export class GameScene extends Phaser.Scene {
     if (now < this.invisibleUntil) effects.push(`Invisible (${left(this.invisibleUntil)})`);
     if (now < this.darkBlastUntil) effects.push(`Dark Blast (${left(this.darkBlastUntil)})`);
     if (this.eco.active) effects.push(`${this.eco.active === 'light' ? 'Light' : 'Dark'} Jak: ${Math.round(this.eco[this.eco.active])} eco left`);
-    if (this.victory) effects.push('Endless mode: a boss returns every 90s');
+    if (this.victory) {
+      const minutes = this.sinceVictory() / 60;
+      effects.push(`Endless mode: a boss every ${ENDLESS_BOSS_EVERY}s, a horde every ${ENDLESS_HORDE_EVERY}s, an oracle every 45s, a character every 60s`);
+      effects.push(`Enemies: +${Math.round(minutes * 100)}% health, +${Math.round(minutes * 50)}% damage`);
+    }
     return effects;
+  }
+
+  /** Seconds of endless mode so far; 0 before the Power Cell. */
+  private sinceVictory(): number {
+    return this.victory ? this.elapsed - this.victoryAt : 0;
+  }
+
+  private enemyDamageMultiplier(): number {
+    return damageMultiplier(this.elapsed) * endlessDamageMultiplier(this.sinceVictory());
   }
 
   private claimPowerCell(): void {
     this.victory = true;
+    this.victoryAt = this.elapsed;
+    this.field.startEndless(this.elapsed);
     this.nextEndlessBossAt = this.elapsed + ENDLESS_BOSS_EVERY;
     this.cameras.main.flash(600, 255, 183, 3);
     this.showBanner('POWER CELL ACQUIRED!', 'Endless mode: survive as long as you can', COLORS.accent);
@@ -903,12 +922,14 @@ export class GameScene extends Phaser.Scene {
   private spawnEnemies(dt: number, previous: number): void {
     this.spawnTimer -= dt;
     while (this.spawnTimer <= 0) {
-      this.spawnTimer += spawnInterval(this.elapsed);
+      this.spawnTimer += this.victory ? endlessSpawnInterval(this.sinceVictory()) : spawnInterval(this.elapsed);
       this.spawnEnemy(this.pickZoneEnemy(), this.rng() * Math.PI * 2);
     }
 
     // Every minute a ring of Lurkers closes in from all sides
-    const horde = hordeSize(previous, this.elapsed);
+    const horde = this.victory
+      ? endlessHordeSize(previous - this.victoryAt, this.sinceVictory())
+      : hordeSize(previous, this.elapsed);
     if (horde > 0) {
       const offset = this.rng() * Math.PI * 2;
       for (let i = 0; i < horde; i++) this.spawnEnemy(this.pickZoneEnemy(), offset + (i / horde) * Math.PI * 2);
@@ -925,10 +946,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemyAt(def: EnemyDef, at: Point): void {
-    if (this.enemies.length >= MAX_ENEMIES) return;
+    if (this.enemies.length >= (this.victory ? ENDLESS_MAX_ENEMIES : MAX_ENEMIES)) return;
     const x = Phaser.Math.Clamp(at.x, 0, WORLD_SIZE);
     const y = Phaser.Math.Clamp(at.y, 0, WORLD_SIZE);
-    const hp = def.hp * hpMultiplier(this.elapsed);
+    const hp = def.hp * hpMultiplier(this.elapsed) * endlessHpMultiplier(this.sinceVictory());
     this.enemies.push({
       sprite: this.add.image(x, y, def.texture).setDepth(DEPTH.enemy),
       def, hp, maxHp: hp, knockX: 0, knockY: 0, flash: 0, dashing: 0, stunned: 0,
@@ -965,7 +986,7 @@ export class GameScene extends Phaser.Scene {
       if (Math.hypot(this.player.x - s.x, this.player.y - s.y) < enemy.def.radius + PLAYER_RADIUS) contactDps += enemy.def.dps;
     }
 
-    if (contactDps > 0 && !invisible) this.hurt(contactDps * damageMultiplier(this.elapsed) * dt);
+    if (contactDps > 0 && !invisible) this.hurt(contactDps * this.enemyDamageMultiplier() * dt);
   }
 
   private moveEnemy(enemy: Enemy, dt: number, decay: number): void {

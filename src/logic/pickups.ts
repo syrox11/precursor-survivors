@@ -69,3 +69,17 @@ export function rollEnemyDrop(rng: Rng): ChestContent | null {
   while (content === 'weaponMod') content = rollChest(rng);
   return content;
 }
+
+/** In endless mode there are no more zones, so characters and oracles come on their own timers. */
+export const ENDLESS_NPC_EVERY = 60;
+export const ENDLESS_ORACLE_EVERY = 45;
+/** First appearance, in seconds after the Power Cell. */
+export const ENDLESS_NPC_FIRST = 20;
+export const ENDLESS_ORACLE_FIRST = 35;
+
+/** True when a `first + k * every` moment (k >= 0) falls in this step of endless time. */
+export function endlessEventDue(first: number, every: number, previous: number, since: number): boolean {
+  if (since < first) return false;
+  const index = Math.floor((since - first) / every);
+  return crossed(first + index * every, previous, since);
+}

@@ -2,9 +2,9 @@ import * as Phaser from 'phaser';
 import type { Point } from '../combat/types';
 import { FONT, PLAYER_RADIUS, WORLD_SIZE } from '../config';
 import type { MapDef } from '../logic/maps';
-import { NPCS, pickNpcs, type NpcDef } from '../logic/npcs';
+import { MAP_NPCS, NPCS, pickNpcs, type NpcDef } from '../logic/npcs';
 import {
-  chestDue, DROP_STAYS, MAX_CHESTS, NPC_AT, NPC_STAYS, ORACLE_AT, ORACLE_STAYS, rollChest, zoneEventDue, type ChestContent,
+  chestDue, DROP_STAYS, ENDLESS_NPC_EVERY, ENDLESS_NPC_FIRST, ENDLESS_ORACLE_EVERY, ENDLESS_ORACLE_FIRST, endlessEventDue, MAX_CHESTS, NPC_AT, NPC_STAYS, ORACLE_AT, ORACLE_STAYS, rollChest, zoneEventDue, type ChestContent,
 } from '../logic/pickups';
 import type { Rng } from '../logic/rng';
 import type { IndicatorTarget } from '../ui/indicators';
@@ -29,6 +29,8 @@ const PICKUP_RADIUS = 26;
 export class Field {
   private objects: FieldObject[] = [];
   private readonly cast: NpcDef[];
+  /** Run time the endless mode started at, once it has. */
+  private endlessSince?: number;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -49,6 +51,16 @@ export class Field {
     const npcZone = zoneEventDue(NPC_AT, this.map.zones.length, previous, elapsed);
     if (npcZone !== undefined && this.cast[npcZone]) this.spawnNpc(this.cast[npcZone], this.around(player, 450, 650));
 
+    if (this.endlessSince !== undefined) {
+      const before = previous - this.endlessSince;
+      const since = elapsed - this.endlessSince;
+      if (endlessEventDue(ENDLESS_ORACLE_FIRST, ENDLESS_ORACLE_EVERY, before, since)) this.spawnOracle(this.around(player, 400, 600));
+      if (endlessEventDue(ENDLESS_NPC_FIRST, ENDLESS_NPC_EVERY, before, since)) {
+        const cast = MAP_NPCS[this.map.id];
+        this.spawnNpc(NPCS[cast[Math.floor(this.rng() * cast.length)]], this.around(player, 450, 650));
+      }
+    }
+
     for (let i = this.objects.length - 1; i >= 0; i--) {
       const object = this.objects[i];
       const { sprite } = object;
@@ -66,6 +78,11 @@ export class Field {
         if (object.timeLeft <= 0) this.remove(i);
       }
     }
+  }
+
+  /** From now on characters and oracles keep coming on endless timers, since there are no more zones. */
+  startEndless(at: number): void {
+    this.endlessSince = at;
   }
 
   dropChest(at: Point): void {

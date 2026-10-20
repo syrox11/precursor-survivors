@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ZONE_DURATION } from '../../src/logic/maps';
 import {
-  CHEST_EVERY, CHEST_WEIGHTS, chestDue, crossed, ENEMY_DROP_CHANCE, FIRST_CHEST, NPC_AT, rollChest, rollEnemyDrop, zoneEventDue,
+  CHEST_EVERY, CHEST_WEIGHTS, chestDue, crossed, ENEMY_DROP_CHANCE, endlessEventDue, FIRST_CHEST, NPC_AT, rollChest,
+  rollEnemyDrop, zoneEventDue,
   type ChestContent,
 } from '../../src/logic/pickups';
 import { createRng } from '../../src/logic/rng';
@@ -60,5 +61,14 @@ describe('rollEnemyDrop', () => {
       expect(drop).not.toBe('weaponMod');
     }
     expect(drops / 50000).toBeCloseTo(ENEMY_DROP_CHANCE, 2);
+  });
+});
+
+describe('endlessEventDue', () => {
+  it('fires at the first moment, then on a fixed rhythm', () => {
+    expect(endlessEventDue(20, 60, 19.99, 20.01)).toBe(true);
+    expect(endlessEventDue(20, 60, 20.01, 20.03)).toBe(false);
+    expect(endlessEventDue(20, 60, 79.99, 80.01)).toBe(true);
+    expect(endlessEventDue(20, 60, 0, 19.9)).toBe(false);
   });
 });

@@ -56,7 +56,7 @@ Enemies get tougher and more numerous over time, and from minute 2 a horde surro
 
 ### Maps
 
-Each map follows one game. Every 2:30 the zone changes (ground, scenery and enemies), and 30 seconds before each change the zone's boss shows up. A boss you don't kill follows you into the next zone. To win, survive the 10 minutes **and** defeat the final boss. That earns the Power Cell, and then the run goes on in **endless mode**: enemies keep getting tougher and a boss from the map returns every 90 seconds, until Jak falls.
+Each map follows one game. Every 2:30 the zone changes (ground, scenery and enemies), and 30 seconds before each change the zone's boss shows up. A boss you don't kill follows you into the next zone. To win, survive the 10 minutes **and** defeat the final boss. That earns the Power Cell, and then the run goes on in **endless mode** until Jak falls: a boss returns every 30 seconds, a bigger horde every 20, enemies gain +100% health and +50% damage per minute on top of the normal scaling, and spawns keep speeding up. Oracles (every 45s) and characters (every 60s) keep showing up too.
 
 **The Precursor Legacy (Jak 1)**
 
