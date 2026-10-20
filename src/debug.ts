@@ -19,7 +19,7 @@ export interface DebugSnapshot {
   field: { kind: 'chest' | 'pickup' | 'oracle' | 'npc'; x: number; y: number }[];
   loadout: Loadout;
   eco: { light: number; dark: number; active: 'light' | 'dark' | null };
-  state: 'playing' | 'levelUp' | 'over';
+  state: 'playing' | 'levelUp' | 'paused' | 'over';
 }
 
 declare global {

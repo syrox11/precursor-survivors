@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH } from '../config';
 import { describeMod, weaponModifiers, type WeaponMod } from '../logic/arsenal';
-import { describeItem } from '../logic/describe';
+import { describeItem, weaponBonus } from '../logic/describe';
 import { ITEMS, ownedOfKind, SLOTS, type ItemId, type Loadout, type WeaponId } from '../logic/items';
 import type { PlayerStats } from '../logic/stats';
 import { addButton } from '../ui/button';
@@ -85,16 +85,19 @@ export class PauseScene extends Phaser.Scene {
   }
 
   private itemDetails(id: ItemId, level: number, data: PauseData): string {
-    const lines = [`${ITEMS[id].name}  ·  Level ${level}`, describeItem(id, level)];
-    if (ITEMS[id].kind === 'weapon') {
-      const mods = weaponModifiers(id as WeaponId, data.loadout, data.weaponMods);
+    const weapon = ITEMS[id].kind === 'weapon';
+    const mods = weapon ? weaponModifiers(id as WeaponId, data.loadout, data.weaponMods) : undefined;
+    const bonus = mods && weaponBonus(data.stats, mods);
+    const lines = [`${ITEMS[id].name}  ·  Level ${level}`, describeItem(id, level, bonus)];
+    if (mods) {
       const extras = [
         mods.damage !== 1 && `${mods.damage > 1 ? '+' : ''}${pct(mods.damage - 1)} damage`,
         mods.cooldown !== 1 && `-${pct(1 - mods.cooldown)} cooldown`,
         mods.area !== 1 && `+${pct(mods.area - 1)} area`,
         mods.extra > 0 && `+${mods.extra} projectiles`,
       ].filter(Boolean);
-      if (extras.length > 0) lines.push(`Synergy and mods: ${extras.join(', ')}`);
+      if (extras.length > 0) lines.push(`From synergy and mods: ${extras.join(', ')}`);
+      lines.push('Totals include your passives, power-ups, synergy and mods.');
     }
     return lines.join('\n');
   }

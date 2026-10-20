@@ -15,6 +15,7 @@ import {
   BOSSES, bossesDue, bossHpMultiplier, bossSpawnTime, groundTexture, MAPS, zoneChanged, zoneIndexAt, type MapDef,
 } from '../logic/maps';
 import { bonusesFor, COMPANIONS, NO_BONUSES, SKINS, type Bonuses } from '../logic/meta';
+import { weaponBonus } from '../logic/describe';
 import { formatTime } from '../logic/records';
 import { createRng, randomBetween, seedFromQuery, type Rng } from '../logic/rng';
 import { loadSave, type RunSetup } from '../logic/save';
@@ -76,7 +77,7 @@ const DEPTH = { decor: 1, orb: 2, enemy: 3, player: 4, companion: 5, fx: 6, hud:
 
 export class GameScene extends Phaser.Scene {
   private rng!: Rng;
-  private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'Q' | 'E' | 'ONE' | 'TWO' | 'THREE' | 'FOUR' | 'ESC' | 'P', Phaser.Input.Keyboard.Key>;
+  private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', Phaser.Input.Keyboard.Key>;
 
   private setup!: RunSetup;
   private bonuses: Bonuses = NO_BONUSES;
@@ -150,6 +151,8 @@ export class GameScene extends Phaser.Scene {
   private darkBlastTimer = 0;
   /** Seconds left charging a Dark Strike, or 0. */
   private strikeCharge = 0;
+  /** Key codes pressed since the last frame (abilities, forms, pause). */
+  private pressedKeys = new Set<string>();
   /** Keys pressed to pick a level-up card must not also fire an ability on resume. */
   private abilityKeysBlockedUntil = 0;
 
@@ -211,10 +214,17 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE).startFollow(this.player, true, 0.15, 0.15);
 
     // The 1-3 keys pick level-up cards; don't let that same press cast an ability right after
+    // Taps are collected from keydown events: polling a key's "just pressed" flag misses a tap that is
+    // pressed and released within one frame, which happens at low frame rates or with quick fingers
+    this.input.keyboard?.on('keydown', (event: KeyboardEvent) => this.pressedKeys.add(event.code));
     this.events.on('resume', () => {
+      this.pressedKeys.clear();
       this.abilityKeysBlockedUntil = this.elapsed + 0.25;
+      // Keys released while paused never reach this scene, so Phaser would think they are still held:
+      // Jak would keep walking, and ESC would stop registering. Start every resume from a clean keyboard.
+      this.input.keyboard?.resetKeys();
     });
-    this.keys = this.input.keyboard!.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,Q,E,ONE,TWO,THREE,FOUR,ESC,P') as typeof this.keys;
+    this.keys = this.input.keyboard!.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT') as typeof this.keys;
     this.combat = this.createCombat();
     this.companionContext = this.createCompanionContext();
     this.bossContext = this.createBossContext();
@@ -258,7 +268,7 @@ export class GameScene extends Phaser.Scene {
         field: this.field.snapshot(),
         loadout: { ...this.loadout },
         eco: { ...this.eco },
-        state: this.ended ? 'over' : this.scene.isPaused() ? 'levelUp' : 'playing',
+        state: this.ended ? 'over' : this.scene.isActive('Pause') ? 'paused' : this.scene.isPaused() ? 'levelUp' : 'playing',
       }));
     }
   }
@@ -267,13 +277,15 @@ export class GameScene extends Phaser.Scene {
     if (this.ended) return;
     // Cap the step so a background tab doesn't teleport everything on return
     const dt = Math.min(deltaMs, 50) / 1000;
-    // Always read the pause keys so a press made while paused can't reopen the pause on resume
-    const pausePressed = Phaser.Input.Keyboard.JustDown(this.keys.ESC) || Phaser.Input.Keyboard.JustDown(this.keys.P);
-    if (pausePressed && this.elapsed >= this.abilityKeysBlockedUntil) return this.openPause();
+    // One-off keys come from keydown events gathered this frame (see create), then are cleared
+    const pressed = new Set(this.pressedKeys);
+    this.pressedKeys.clear();
+    const keysOpen = this.elapsed >= this.abilityKeysBlockedUntil;
+    if (keysOpen && (pressed.has('Escape') || pressed.has('KeyP'))) return this.openPause();
     const previous = this.elapsed;
     this.elapsed += dt;
 
-    this.updateEcoForm(dt);
+    this.updateEcoForm(dt, keysOpen ? pressed : new Set());
     this.refreshStats();
     this.movePlayer(dt);
     if (zoneChanged(this.map, previous, this.elapsed)) this.enterZone(zoneIndexAt(this.map, this.elapsed));
@@ -637,15 +649,11 @@ export class GameScene extends Phaser.Scene {
   // ---- Light Jak and Dark Jak ----
 
   /** Transform keys, ability keys 1-4, the meter drain and anything an ability keeps doing over time. */
-  private updateEcoForm(dt: number): void {
-    const k = this.keys;
-    const JustDown = Phaser.Input.Keyboard.JustDown;
-    // Read every key every frame, so a press can never sit waiting and fire later by surprise
-    const keysOpen = this.elapsed >= this.abilityKeysBlockedUntil;
-    const pressedMode: EcoMode | null = JustDown(k.E) ? 'light' : JustDown(k.Q) ? 'dark' : null;
-    const slot = [k.ONE, k.TWO, k.THREE, k.FOUR].map((key) => JustDown(key)).indexOf(true);
+  private updateEcoForm(dt: number, pressed: ReadonlySet<string>): void {
+    const pressedMode: EcoMode | null = pressed.has('KeyE') ? 'light' : pressed.has('KeyQ') ? 'dark' : null;
+    const slot = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].findIndex((code) => pressed.has(code));
 
-    if (keysOpen && !this.eco.active) {
+    if (!this.eco.active) {
       const mode = pressedMode;
       if (mode) {
         const next = transform(this.eco, mode);
@@ -657,7 +665,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.eco.active) {
-      if (keysOpen && slot >= 0) {
+      if (slot >= 0) {
         const { state, ability } = useAbility(this.eco, slot);
         this.eco = state;
         if (ability) this.useEcoAbility(ability.id);
@@ -1178,6 +1186,11 @@ export class GameScene extends Phaser.Scene {
       choices,
       loadout: this.loadout,
       rerollsLeft: this.rerolls,
+      bonusFor: (id) => {
+        if (ITEMS[id].kind !== 'weapon') return undefined;
+        const after = applyItem(this.loadout, id);
+        return weaponBonus(computeStats(after, this.bonuses), weaponModifiers(id as WeaponId, after, this.weaponMods));
+      },
       onReroll: () => {
         this.rerolls--;
         return roll();

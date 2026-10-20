@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH } from '../config';
 import { COLOR_HEX, COLOR_NAMES, GUN_COLORS } from '../logic/arsenal';
-import { describeUpgrade } from '../logic/describe';
+import { describeUpgrade, type Bonus } from '../logic/describe';
 import { ITEMS, levelOf, type ItemId, type Loadout, type WeaponId } from '../logic/items';
 import { addButton } from '../ui/button';
 
@@ -11,6 +11,8 @@ export interface LevelUpData {
   choices: ItemId[];
   loadout: Loadout;
   rerollsLeft: number;
+  /** Weapon bonuses as they would be after taking this item, so cards can show totals. */
+  bonusFor: (id: ItemId) => Bonus | undefined;
   /** Spends a reroll and returns new choices. */
   onReroll: () => ItemId[];
   onChoose: (id: ItemId) => void;
@@ -98,7 +100,7 @@ export class LevelUpScene extends Phaser.Scene {
       add(this.add.text(x, y - 15, def.name, { fontFamily: FONT, fontSize: '22px', color: COLORS.text, fontStyle: 'bold' }).setOrigin(0.5));
       add(this.add.text(x, y + 15, nextLevel === 1 ? 'NEW' : `Level ${nextLevel}`, { fontFamily: FONT, fontSize: '14px', color: COLORS.accent })
         .setOrigin(0.5));
-      add(this.add.text(x, y + 55, describeUpgrade(id, nextLevel), {
+      add(this.add.text(x, y + 55, describeUpgrade(id, nextLevel, this.data_.bonusFor(id)), {
         fontFamily: FONT, fontSize: '13px', color: COLORS.text, align: 'center', wordWrap: { width: cardWidth - 24 }, lineSpacing: 3,
       }).setOrigin(0.5));
       add(this.add.text(x, y + 95, `[${i + 1}]`, { fontFamily: FONT, fontSize: '13px', color: COLORS.text }).setOrigin(0.5).setAlpha(0.6));
