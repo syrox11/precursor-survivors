@@ -76,3 +76,8 @@ export function debugEco(search: string): number {
 export function exposeDebug(snapshot: () => DebugSnapshot): void {
   window.__precursor = { snapshot };
 }
+
+/** `?debug&unlockAll`: writes a save with everything unlocked (kept after the page reloads). */
+export function debugUnlockAll(search: string): boolean {
+  return debugEnabled(search) && new URLSearchParams(search).has('unlockAll');
+}

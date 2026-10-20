@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { debugEco, debugEnabled, debugGodMode, debugLoadout, debugMap, debugStartTime } from '../../src/debug';
+import { debugEco, debugEnabled, debugUnlockAll, debugGodMode, debugLoadout, debugMap, debugStartTime } from '../../src/debug';
 
 describe('debugEnabled', () => {
   it('is on only with the debug flag', () => {
@@ -53,5 +53,12 @@ describe('debugEco', () => {
     expect(debugEco('?eco=100')).toBe(100);
     expect(debugEco('?eco=-1')).toBe(0);
     expect(debugEco('?debug')).toBe(0);
+  });
+});
+
+describe('debugUnlockAll', () => {
+  it('needs both debug and unlockAll', () => {
+    expect(debugUnlockAll('?debug&unlockAll')).toBe(true);
+    expect(debugUnlockAll('?unlockAll')).toBe(false);
   });
 });

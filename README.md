@@ -153,7 +153,7 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [Phaser 4](https://phaser.io/) + TypeScript, bundled with Vite
 - Game rules (XP curve, items, stats, waves, save data, shop prices, rewards) live in `src/logic/` as plain functions with no Phaser dependency, so they are unit-tested with Vitest
 - Seeded random generator: add `?seed=123` to the URL to get a reproducible run (same spawns, same upgrade offers)
-- Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, `?debug&items=arc:3,scatter:2` starts the run with those items, `?debug&t=270` starts 270 seconds in (to jump to a zone or boss), `?debug&god` makes Jak take no damage, `?debug&map=jak2` plays a map even if it is locked, and `?debug&eco=100` starts with both eco meters full
+- Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, `?debug&items=arc:3,scatter:2` starts the run with those items, `?debug&t=270` starts 270 seconds in (to jump to a zone or boss), `?debug&god` makes Jak take no damage, `?debug&map=jak2` plays a map even if it is locked, , `?debug&eco=100` starts with both eco meters full, and `?debug&unlockAll` unlocks everything in your save
 - GitHub Actions: typecheck, unit tests and build on every push; deploys to GitHub Pages from `main`
 
 ```bash

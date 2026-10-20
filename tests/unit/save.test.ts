@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BOSS_BONUS, POWER_CELL_BONUS, type RunSummary } from '../../src/logic/meta';
 import {
-  buy, defaultSave, LEGACY_BEST_TIME_KEY, loadSave, parseSave, priceOf, recordRun, SAVE_KEY, writeSave,
+  buy, defaultSave, LEGACY_BEST_TIME_KEY, loadSave, parseSave, priceOf, recordRun, SAVE_KEY, unlockEverything, writeSave,
   type KeyValueStore, type SaveData,
 } from '../../src/logic/save';
 
@@ -206,5 +206,19 @@ describe('storage keys', () => {
     const store = memoryStore();
     writeSave(store, defaultSave());
     expect(store.data.has(SAVE_KEY)).toBe(true);
+  });
+});
+
+describe('unlockEverything', () => {
+  it('unlocks every map, weapon, companion, skin, power-up and ban slot, keeping records', () => {
+    const save = unlockEverything({ ...defaultSave(), bestTime: 300 });
+    expect(save.maps).toEqual(['jak1', 'jak2', 'jak3']);
+    expect(save.weapons).toContain('superNova');
+    expect(save.companions).toContain('clank');
+    expect(save.skins).toContain('darkJak');
+    expect(save.banSlots).toBe(3);
+    expect(save.powerUps.might).toBe(5);
+    expect(save.bestTime).toBe(300);
+    expect(parseSave(JSON.stringify(save))).toEqual(save);
   });
 });

@@ -209,3 +209,19 @@ export function recordRun(save: SaveData, run: RunSummary): RunReward {
     unlockedMap,
   };
 }
+
+/** Debug helper: every map, weapon, companion, skin, power-up rank and ban slot, plus plenty of batteries. */
+export function unlockEverything(save: SaveData): SaveData {
+  const powerUps: SaveData['powerUps'] = {};
+  for (const def of Object.values(POWER_UPS)) powerUps[def.id] = def.maxRank;
+  return {
+    ...save,
+    batteries: Math.max(save.batteries, 9999),
+    weapons: Object.keys(WEAPON_UNLOCK_COST) as WeaponId[],
+    companions: Object.keys(COMPANIONS) as CompanionId[],
+    skins: Object.keys(SKINS) as SkinId[],
+    maps: [...MAP_ORDER],
+    powerUps,
+    banSlots: BAN_SLOT_COSTS.length,
+  };
+}

@@ -2,7 +2,8 @@ import * as Phaser from 'phaser';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage } from '../config';
 import { COMPANIONS, SKINS } from '../logic/meta';
 import { formatTime } from '../logic/records';
-import { loadSave } from '../logic/save';
+import { debugUnlockAll } from '../debug';
+import { loadSave, unlockEverything, writeSave } from '../logic/save';
 import { addButton } from '../ui/button';
 
 export class TitleScene extends Phaser.Scene {
@@ -11,6 +12,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create(): void {
+    if (debugUnlockAll(window.location.search)) writeSave(getStorage(), unlockEverything(loadSave(getStorage())));
     const save = loadSave(getStorage());
     const cx = GAME_WIDTH / 2;
     this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'sand').setOrigin(0).setAlpha(0.25);
