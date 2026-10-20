@@ -47,7 +47,7 @@ Each map follows one game. Every 2:30 the zone changes (ground, scenery and enem
 
 | Time | Zone | Enemies | Boss (at) |
 |------|------|---------|-----------|
-| 0:00 | Sentinel Beach | Lurker Puppies, Lurker Crabs | Dark Eco Plant (2:00): spits dark eco |
+| 0:00 | Green Sage's Village | Lurker Puppies, Lurker Crabs | Dark Eco Plant (2:00): spits dark eco |
 | 2:30 | Blue Sage's Village | Babaks, Flying Lurkers (zigzag) | Klaww (4:30): throws boulders where you stand |
 | 5:00 | Volcanic Crater | Bone Armor Lurkers (charge), Lava Spiders | Giant Lava Spider (7:00): lunges and hatches spiders |
 | 7:30 | Gol and Maia's Citadel | All of the above | Gol and Maia's Precursor Robot (9:30): rings of dark eco, calls reinforcements |

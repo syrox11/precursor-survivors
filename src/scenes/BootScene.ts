@@ -40,6 +40,12 @@ function drawJak(g: Phaser.GameObjects.Graphics, look: JakLook): void {
   g.fillStyle(look.eyes).fillCircle(13, 13, look.horns ? 2.2 : 1.5).fillCircle(19, 13, look.horns ? 2.2 : 1.5);
 }
 
+function drawHut(g: Phaser.GameObjects.Graphics, walls: number, roof: number): void {
+  g.fillStyle(walls).fillRect(8, 26, 40, 28);
+  g.fillStyle(roof).fillTriangle(2, 28, 28, 4, 54, 28);
+  g.fillStyle(0x2b2d42).fillRect(23, 38, 10, 16); // door
+}
+
 function drawGround(g: Phaser.GameObjects.Graphics, style: GroundStyle): void {
   g.fillStyle(style.base).fillRect(0, 0, 64, 64);
   for (let i = 0; i < 18; i++) {
@@ -212,11 +218,8 @@ export class BootScene extends Phaser.Scene {
       g.fillStyle(0x8d7966).fillEllipse(10, 9, 12, 8);
     });
 
-    this.texture('hut', 56, 56, (g) => {
-      g.fillStyle(0x8d99ae).fillRect(8, 26, 40, 28); // walls
-      g.fillStyle(0x3a86ff).fillTriangle(2, 28, 28, 4, 54, 28); // blue roof
-      g.fillStyle(0x2b2d42).fillRect(23, 38, 10, 16); // door
-    });
+    this.texture('hut', 56, 56, (g) => drawHut(g, 0x8d99ae, 0x3a86ff));
+    this.texture('greenHut', 56, 56, (g) => drawHut(g, 0xc9a66b, 0x38b000));
 
     this.texture('lavaPool', 70, 40, (g) => {
       g.fillStyle(0x2e2420).fillEllipse(35, 20, 70, 40);

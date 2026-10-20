@@ -56,12 +56,12 @@ export const MAPS: Record<MapId, MapDef> = {
     name: 'The Precursor Legacy',
     zones: [
       {
-        name: 'Sentinel Beach',
+        name: "Green Sage's Village",
         ground: { base: 0xe6d3a3, speckA: 0xd8c08a, speckB: 0xf3e6c4 },
-        decor: ['palm', 'rock'],
+        decor: ['palm', 'greenHut', 'rock'],
         pool: [{ enemy: 'lurkerPuppy', weight: 5 }, { enemy: 'lurkerCrab', weight: 1, after: 60 }],
         boss: 'darkEcoPlant',
-        quote: 'Ah, the beach. Sun, sand... and Lurkers. Great.',
+        quote: 'Home sweet home. Sun, sand... and Lurkers. Great.',
       },
       {
         name: "Blue Sage's Village",
