@@ -19,12 +19,23 @@ export interface DebugSnapshot {
   field: { kind: 'chest' | 'pickup' | 'oracle' | 'npc'; x: number; y: number }[];
   loadout: Loadout;
   eco: { light: number; dark: number; active: 'light' | 'dark' | null };
+  /** Countdowns shown on the right of the HUD, e.g. "Light Shield: no damage". */
+  timers: { label: string; left: number }[];
+  /** Power Cell earned and endless mode running. */
+  victory: boolean;
+  /** Circle game objects alive in the scene. A steady climb means effects are leaking. */
+  circles: number;
+  /** Every game object in the scene. */
+  objects: number;
   state: 'playing' | 'levelUp' | 'paused' | 'over';
 }
 
 declare global {
   interface Window {
+    /** Set by the game scene while a run is on. */
     __precursor?: { snapshot(): DebugSnapshot };
+    /** Keys of the scenes running right now, e.g. ['Title'] or ['Game', 'Pause']. Debug only. */
+    __precursorScenes?: () => string[];
   }
 }
 

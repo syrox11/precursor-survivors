@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   build:
+    name: Typecheck, unit tests, build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -37,9 +38,35 @@ jobs:
         with:
           path: dist/
 
-  deploy:
-    if: github.ref == 'refs/heads/main'
+  e2e:
+    name: End-to-end tests
     needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run Playwright
+        run: npx playwright test
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.ref == 'refs/heads/main'
+    needs: [build, e2e]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

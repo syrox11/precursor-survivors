@@ -48,11 +48,14 @@ export class PauseScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: '12px', color: COLORS.text,
     }).setOrigin(0.5).setAlpha(0.6);
 
-    // Ignore the very press that opened the pause
-    this.time.delayedCall(150, () => {
-      this.input.keyboard?.on('keydown-ESC', () => data.onResume());
-      this.input.keyboard?.on('keydown-P', () => data.onResume());
-    });
+    // The press that opened the pause can still be in this frame's key queue: skip any key event older than
+    // the pause itself. A fixed delay instead would also swallow a quick second press meant to resume.
+    const openedAt = performance.now();
+    const resume = (event: KeyboardEvent) => {
+      if (event.timeStamp > openedAt) data.onResume();
+    };
+    this.input.keyboard?.on('keydown-ESC', resume);
+    this.input.keyboard?.on('keydown-P', resume);
   }
 
   /** Weapon and passive slots as hoverable icons. */

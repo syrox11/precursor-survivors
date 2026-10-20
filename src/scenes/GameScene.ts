@@ -262,8 +262,8 @@ export class GameScene extends Phaser.Scene {
     this.events.on('resume', () => {
       this.pressedKeys.clear();
       this.abilityKeysBlockedUntil = this.elapsed + 0.25;
-      // Keys released while paused never reach this scene, so Phaser would think they are still held:
-      // Jak would keep walking, and ESC would stop registering. Start every resume from a clean keyboard.
+      // Defensive: start every resume from a clean keyboard so no key can be left "held" from before the
+      // pause. The current Phaser already handles this (see the pause E2E spec), but it costs nothing.
       this.input.keyboard?.resetKeys();
     });
     this.keys = this.input.keyboard!.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT') as typeof this.keys;
@@ -310,7 +310,16 @@ export class GameScene extends Phaser.Scene {
         field: this.field.snapshot(),
         loadout: { ...this.loadout },
         eco: { ...this.eco },
-        state: this.ended ? 'over' : this.scene.isActive('Pause') ? 'paused' : this.scene.isPaused() ? 'levelUp' : 'playing',
+        timers: this.runningTimers().map((t) => ({ label: t.label, left: t.left })),
+        victory: this.victory,
+        circles: this.children.list.filter((o) => o.type === 'Arc').length,
+        objects: this.children.length,
+        // A level-up counts from the moment it is owed: the scene pause behind the card screen only
+        // takes effect next frame, and in between the run would look "playing" with the card still unpicked
+        state: this.ended ? 'over'
+          : this.scene.isActive('Pause') ? 'paused'
+          : this.scene.isPaused() || this.pendingLevelUps > 0 || this.pendingGifts.length > 0 ? 'levelUp'
+          : 'playing',
       }));
     }
   }
@@ -323,7 +332,8 @@ export class GameScene extends Phaser.Scene {
     const pressed = new Set(this.pressedKeys);
     this.pressedKeys.clear();
     const keysOpen = this.elapsed >= this.abilityKeysBlockedUntil;
-    if (keysOpen && (pressed.has('Escape') || pressed.has('KeyP'))) return this.openPause();
+    // The short block after a resume only guards abilities (keys 1-4 also pick cards): pausing is always allowed
+    if (pressed.has('Escape') || pressed.has('KeyP')) return this.openPause();
     const previous = this.elapsed;
     this.elapsed += dt;
 

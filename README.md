@@ -146,22 +146,51 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [x] **Phase 5b:** Light Jak and Dark Jak: eco meters and activated powers; red and yellow eco
 - [x] **Phase 5c:** the rest of the Jak 3 Morph Gun (7 weapons, unlocked in the shop), colour synergies, weapon mods from chests, 5 weapon slots
 - [x] **Phase 5d:** pause screen with item details, numbers-first descriptions, no level cap, endless mode after the final boss, enemy pickup drops
-- [ ] **Phase 6:** E2E tests with Playwright on the canvas, performance checks
+- [x] **Phase 6:** end-to-end tests with Playwright on the canvas, regression and performance checks, E2E gate in CI
+
+## Testing
+
+Two layers, each doing what it is good at.
+
+**Unit tests (Vitest, ~210 tests).** Every game rule lives in `src/logic/` as plain functions with no Phaser dependency: XP curve, item offers and slots, stats and their caps, weapon numbers, colour synergies and mods, the eco meters, waves and endless scaling, zone and boss schedules, characters and gifts, the save format (validation, migration, shop, rewards) and the item descriptions. They run in milliseconds.
+
+**End-to-end tests (Playwright, `tests/e2e/`).** They play the production build in a real browser. A canvas has no DOM to query, so the tests rely on two things built into the game for them:
+
+- **Debug hooks**, only active with `?debug`: a read-only snapshot of the run on `window.__precursor` (time, health, level, enemies, bosses, loadout, eco, timers, object counts...) and the active scenes on `window.__precursorScenes()`.
+- **Debug URL parameters** to set a test up in seconds instead of minutes: `seed`, `t` (start later in the run), `items`, `map`, `god`, `eco`, `endless`, `unlockAll`.
+
+A `GamePage` page object wraps all of it (start a run, read state, pick cards, open the pause...) and **waits in game time, not wall-clock time**, so a slow machine makes tests slower but not flaky. A fixture fails any test that logs an error in the page, since a crashed canvas game often just looks frozen.
+
+| Spec | Covers |
+|------|--------|
+| `menus` | Title → setup → run, buying in the shop, starting weapon choice, save fallback for a locked map |
+| `run` | Enemies, kills and level-ups, picking a card, dying and getting paid, zone changes |
+| `pause` | ESC / P, instant taps, keys released during the pause |
+| `eco` | Light Jak and Dark Jak: full meter needed, ability costs, countdowns, the Dark Bomb |
+| `bosses` | The first boss of each map on schedule, beating a boss, endless mode bosses, oracles and characters |
+| `stability` | Regression tests for real bugs: Super Nova leaking effects, orbs piling up; a `@perf` stress test |
+
+**Regression tests are checked against the bug.** For each one the fix was removed temporarily to confirm the test fails without it: Super Nova effects went from 38 to 141 circles, uncollected orbs reached 511 against a cap of 200. Writing these tests also found two real bugs: a quick second press right after opening the pause was ignored, and the pause key was blocked for a moment after closing it.
+
+**Performance.** The `@perf` test runs a maxed-out build in endless mode and measures game seconds per real second (1.0x = no slowdown). It is annotated in the report; locally it holds 1.0x. CI runners render without a GPU, so they get a lower bar.
+
+**CI.** GitHub Actions runs typecheck, unit tests and build, then the E2E suite. The site only deploys to GitHub Pages if both pass. The Playwright HTML report, traces, screenshots and videos of failures are kept as an artifact.
+
+```bash
+npm install
+npm run dev        # local dev server
+npm test           # unit tests
+npm run test:e2e   # end-to-end tests (builds and serves the game itself)
+npm run test:perf  # only the performance test
+npm run build      # typecheck + production build in dist/
+```
 
 ## Tech
 
 - [Phaser 4](https://phaser.io/) + TypeScript, bundled with Vite
-- Game rules (XP curve, items, stats, waves, save data, shop prices, rewards) live in `src/logic/` as plain functions with no Phaser dependency, so they are unit-tested with Vitest
-- Seeded random generator: add `?seed=123` to the URL to get a reproducible run (same spawns, same upgrade offers)
-- Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, `?debug&items=arc:3,scatter:2` starts the run with those items, `?debug&t=270` starts 270 seconds in (to jump to a zone or boss), `?debug&god` makes Jak take no damage, `?debug&map=jak2` plays a map even if it is locked, , `?debug&eco=100` starts with both eco meters full, `?debug&unlockAll` unlocks everything in your save, and `?debug&endless` starts straight in endless mode
-- GitHub Actions: typecheck, unit tests and build on every push; deploys to GitHub Pages from `main`
-
-```bash
-npm install
-npm run dev      # local dev server
-npm test         # unit tests
-npm run build    # typecheck + production build in dist/
-```
+- Game rules in `src/logic/` as plain functions, kept apart from the Phaser scenes
+- Seeded random generator: `?seed=123` makes the random rolls come in the same order. Exact runs still depend on frame timing, which is why the E2E tests wait on game state rather than replaying identical runs.
+- Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, `?debug&items=arc:3,scatter:2` starts the run with those items, `?debug&t=270` starts 270 seconds in (to jump to a zone or boss), `?debug&god` makes Jak take no damage, `?debug&map=jak2` plays a map even if it is locked, `?debug&eco=100` starts with both eco meters full, `?debug&unlockAll` unlocks everything in your save, and `?debug&endless` starts straight in endless mode
 
 ## Project structure
 
@@ -172,9 +201,13 @@ src/
 ├── debug.ts           # ?debug test hooks
 ├── combat/            # Weapon and companion behaviours, and the combat interface they use
 ├── logic/             # Pure game rules, save format and shop (unit-tested)
-├── ui/                # Shared UI pieces (buttons)
-└── scenes/            # Boot (placeholder art), Title, Setup, Shop, Game, LevelUp, GameOver
-tests/unit/            # Vitest specs for src/logic
+├── ui/                # Shared UI pieces (buttons, damage numbers, edge arrows)
+├── world/             # Chests, oracles and characters on the map
+└── scenes/            # Boot (placeholder art), Title, Setup, Shop, Game, LevelUp, Pause, GameOver
+tests/
+├── unit/              # Vitest specs for src/logic
+└── e2e/               # Playwright specs
+    └── support/       # GamePage page object and fixtures
 ```
 
 ## License
