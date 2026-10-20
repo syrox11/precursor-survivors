@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { debugEnabled, debugGodMode, debugLoadout, debugStartTime } from '../../src/debug';
+import { debugEnabled, debugGodMode, debugLoadout, debugMap, debugStartTime } from '../../src/debug';
 
 describe('debugEnabled', () => {
   it('is on only with the debug flag', () => {
@@ -37,5 +37,13 @@ describe('debugGodMode', () => {
     expect(debugGodMode('?debug&god')).toBe(true);
     expect(debugGodMode('?god')).toBe(false);
     expect(debugGodMode('?debug')).toBe(false);
+  });
+});
+
+describe('debugMap', () => {
+  it('accepts known maps only', () => {
+    expect(debugMap('?map=jak2')).toBe('jak2');
+    expect(debugMap('?map=jak9')).toBeUndefined();
+    expect(debugMap('?debug')).toBeUndefined();
   });
 });

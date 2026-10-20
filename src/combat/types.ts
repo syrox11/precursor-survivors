@@ -17,6 +17,7 @@ export interface EnemyStats {
   radius: number;
   xp: number;
   behavior: EnemyDef['behavior'] | 'boss';
+  shot?: EnemyDef['shot'];
 }
 
 export interface Enemy {

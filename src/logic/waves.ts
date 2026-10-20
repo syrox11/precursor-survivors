@@ -1,13 +1,27 @@
 import type { Rng } from './rng';
 
-export type EnemyId = 'lurkerPuppy' | 'lurkerCrab' | 'babak' | 'flyingLurker' | 'boneArmor' | 'spider';
+export type EnemyId =
+  // Jak 1
+  | 'lurkerPuppy' | 'lurkerCrab' | 'babak' | 'flyingLurker' | 'boneArmor' | 'spider'
+  // Jak II
+  | 'krimzonGuard' | 'guardGunner' | 'metalGrunt' | 'metalFlitter' | 'metalBrute';
 
 /**
  * chase: walks straight at Jak.
  * zigzag: weaves side to side while closing in.
  * charge: walks, then dashes at Jak every few seconds.
+ * shooter: keeps its distance and fires at Jak.
  */
-export type EnemyBehavior = 'chase' | 'zigzag' | 'charge';
+export type EnemyBehavior = 'chase' | 'zigzag' | 'charge' | 'shooter';
+
+export interface EnemyShot {
+  /** Base damage per hit, scaled with time like contact damage. */
+  damage: number;
+  /** Seconds between shots. */
+  every: number;
+  /** Distance it tries to keep from Jak. */
+  range: number;
+}
 
 export interface EnemyDef {
   id: EnemyId;
@@ -23,6 +37,8 @@ export interface EnemyDef {
   /** Orb value dropped on death. */
   xp: number;
   behavior: EnemyBehavior;
+  /** Only for shooters. */
+  shot?: EnemyShot;
 }
 
 const enemy = (def: EnemyDef) => def;
@@ -51,6 +67,27 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   spider: enemy({
     id: 'spider', name: 'Lava Spider', texture: 'spider',
     hp: 10, speed: 115, dps: 9, radius: 9, xp: 1, behavior: 'chase',
+  }),
+  krimzonGuard: enemy({
+    id: 'krimzonGuard', name: 'Krimzon Guard', texture: 'krimzonGuard',
+    hp: 24, speed: 75, dps: 14, radius: 14, xp: 2, behavior: 'chase',
+  }),
+  guardGunner: enemy({
+    id: 'guardGunner', name: 'Krimzon Gunner', texture: 'guardGunner',
+    hp: 16, speed: 70, dps: 8, radius: 13, xp: 2, behavior: 'shooter',
+    shot: { damage: 9, every: 2.6, range: 260 },
+  }),
+  metalGrunt: enemy({
+    id: 'metalGrunt', name: 'Metal Head Grunt', texture: 'metalGrunt',
+    hp: 30, speed: 80, dps: 16, radius: 15, xp: 2, behavior: 'chase',
+  }),
+  metalFlitter: enemy({
+    id: 'metalFlitter', name: 'Metal Head Flitter', texture: 'metalFlitter',
+    hp: 12, speed: 135, dps: 10, radius: 10, xp: 1, behavior: 'zigzag',
+  }),
+  metalBrute: enemy({
+    id: 'metalBrute', name: 'Metal Head Brute', texture: 'metalBrute',
+    hp: 70, speed: 50, dps: 26, radius: 19, xp: 4, behavior: 'charge',
   }),
 };
 

@@ -33,8 +33,8 @@ export class HostileSystem {
     private readonly onHit: (damage: number) => void,
   ) {}
 
-  fire(from: Point, angle: number, speed: number, damage: number): void {
-    const sprite = this.scene.add.image(from.x, from.y, 'darkEcoBall').setDepth(DEPTH);
+  fire(from: Point, angle: number, speed: number, damage: number, texture = 'darkEcoBall'): void {
+    const sprite = this.scene.add.image(from.x, from.y, texture).setDepth(DEPTH).setRotation(angle);
     this.shots.push({ sprite, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: SHOT_LIFE, damage });
   }
 

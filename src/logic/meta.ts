@@ -1,4 +1,5 @@
 import type { WeaponId } from './items';
+import type { MapId } from './maps';
 
 /** Everything that lives between runs: companions, skins, permanent power-ups, challenges, battery rewards. */
 
@@ -91,6 +92,7 @@ export function powerUpCost(id: PowerUpId, currentRank: number): number | null {
 export const BAN_SLOT_COSTS = [30, 60, 90];
 
 export interface RunSummary {
+  map: MapId;
   won: boolean;
   /** Seconds survived. */
   time: number;

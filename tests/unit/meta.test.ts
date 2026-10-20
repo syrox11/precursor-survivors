@@ -6,7 +6,7 @@ import { BASE_HP, computeStats, MAX_ARMOR } from '../../src/logic/stats';
 
 describe('batteriesForRun', () => {
   it('gives nothing for a run that ends immediately', () => {
-    expect(batteriesForRun({ won: false, time: 10, kills: 5, level: 1, bossesDefeated: 0 })).toBe(0);
+    expect(batteriesForRun({ map: 'jak1', won: false, time: 10, kills: 5, level: 1, bossesDefeated: 0 })).toBe(0);
   });
 });
 

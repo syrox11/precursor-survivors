@@ -5,7 +5,7 @@ import { HostileSystem } from '../combat/hostiles';
 import { createWeapon, type Weapon } from '../combat/weapons';
 import type { Combat, Enemy, EnemyStats, Point, ProjectileSpec } from '../combat/types';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage, PLAYER_RADIUS, RUN_DURATION, WORLD_SIZE } from '../config';
-import { debugEnabled, debugGodMode, debugLoadout, debugStartTime, exposeDebug } from '../debug';
+import { debugEnabled, debugGodMode, debugLoadout, debugMap, debugStartTime, exposeDebug } from '../debug';
 import {
   applyItem, ITEMS, ownedOfKind, rollChoices, STARTING_LOADOUT, startingLoadout,
   type ItemId, type Loadout, type WeaponId,
@@ -122,6 +122,7 @@ export class GameScene extends Phaser.Scene {
     this.rng = createRng(seed);
     const save = loadSave(getStorage());
     this.setup = save.setup;
+    this.map = MAPS[this.setup.map];
     this.bonuses = bonusesFor(save.powerUps, this.setup.companion);
     this.rerolls = save.powerUps.reroll ?? 0;
     this.resetState();
@@ -129,6 +130,7 @@ export class GameScene extends Phaser.Scene {
       this.loadout = { ...this.loadout, ...debugLoadout(search) };
       this.stats = computeStats(this.loadout, this.bonuses);
       this.hp = this.stats.maxHp;
+      this.map = MAPS[debugMap(search) ?? this.setup.map];
       this.elapsed = debugStartTime(search);
       this.zone = zoneIndexAt(this.map, this.elapsed);
       this.godMode = debugGodMode(search);
@@ -264,7 +266,8 @@ export class GameScene extends Phaser.Scene {
       spawnMinion: { value: (id: keyof typeof ENEMIES, at: Point) => scene.spawnEnemyAt(ENEMIES[id], at) },
       spawnFromZone: { value: (at: Point) => scene.spawnEnemyAt(scene.pickZoneEnemy(), at) },
       fireHostile: {
-        value: (from: Point, angle: number, speed: number, damage: number) => scene.hostiles.fire(from, angle, speed, damage),
+        value: (from: Point, angle: number, speed: number, damage: number, texture?: string) =>
+          scene.hostiles.fire(from, angle, speed, damage, texture),
       },
       hazard: {
         value: (at: Point, radius: number, delay: number, damage: number, from?: Point) =>
@@ -514,6 +517,20 @@ export class GameScene extends Phaser.Scene {
       const sway = Math.sin(enemy.timer * 5) * 0.9;
       dirX -= dy / dist * sway;
       dirY += dx / dist * sway;
+    } else if (enemy.def.behavior === 'shooter' && enemy.def.shot) {
+      const { range, every, damage } = enemy.def.shot;
+      // Hold position at range: back off when Jak gets close, stop once in range
+      if (dist < range * 0.75) {
+        dirX = -dirX;
+        dirY = -dirY;
+      } else if (dist < range) {
+        speed = 0;
+      }
+      // Only shoot from roughly on screen, so nothing snipes Jak from the dark
+      if (enemy.timer >= every && dist < range * 1.6) {
+        enemy.timer = 0;
+        this.hostiles.fire(s, Math.atan2(dy, dx), 300, damage, 'laserBolt');
+      }
     } else if (enemy.def.behavior === 'charge') {
       if (enemy.dashing > 0) {
         enemy.dashing -= dt;
@@ -707,6 +724,7 @@ export class GameScene extends Phaser.Scene {
     this.banner?.destroy();
     this.speech?.destroy();
     const result: RunResult = {
+      map: this.map.id,
       won,
       time: Math.min(this.elapsed, RUN_DURATION),
       kills: this.kills,

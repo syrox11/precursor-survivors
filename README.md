@@ -52,7 +52,16 @@ Each map follows one game. Every 2:30 the zone changes (ground, scenery and enem
 | 5:00 | Volcanic Crater | Bone Armor Lurkers (charge), Lava Spiders | Giant Lava Spider (7:00): lunges and hatches spiders |
 | 7:30 | Gol and Maia's Citadel | All of the above | Gol and Maia's Precursor Robot (9:30): rings of dark eco, calls reinforcements |
 
-Maps for *Jak II* and *Jak 3* are next.
+**Renegade (Jak II)**, unlocked by winning The Precursor Legacy
+
+| Time | Zone | Enemies | Boss (at) |
+|------|------|---------|-----------|
+| 0:00 | Haven City | Krimzon Guards, Krimzon Gunners (keep their distance and shoot) | Errol (2:00): circles you on his hover bike and rams through, calls in guards |
+| 2:30 | The Sewers | Metal Head Flitters (zigzag), Metal Head Grunts | Krew (4:30): bullet fans from his hover chair, hired goons |
+| 5:00 | Mar's Tomb | Metal Head Brutes (charge), Flitters, Gunners | Baron Praxis (7:00): aimed bursts and bombing runs on your position |
+| 7:30 | Metal Head Nest | All the Metal Heads | Metal Kor (9:30): spiralling volleys, lunges, a brood of Metal Heads |
+
+A *Jak 3* map is next.
 
 ### Between runs
 
@@ -80,7 +89,7 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [x] **Phase 2:** weapons from the Morph Gun (*Jak II* and *Jak 3*), weapon and passive slots, harder difficulty curve with hordes
 - [x] **Phase 3:** meta progression: Precursor batteries, shop, permanent power-ups, starting weapon, companions, bans, skins and challenges
 - [x] **Phase 4a:** zones and bosses; the Jak 1 map
-- [ ] **Phase 4b:** the Jak II map (Haven City, sewers... Krimzon Guards and Metal Heads)
+- [x] **Phase 4b:** the Jak II map, unlocked by winning the first one
 - [ ] **Phase 4c:** the Jak 3 map (Spargus, the wasteland, the Precursor temple...)
 - [ ] **Phase 5:** E2E tests with Playwright on the canvas, performance checks
 
@@ -89,7 +98,7 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [Phaser 4](https://phaser.io/) + TypeScript, bundled with Vite
 - Game rules (XP curve, items, stats, waves, save data, shop prices, rewards) live in `src/logic/` as plain functions with no Phaser dependency, so they are unit-tested with Vitest
 - Seeded random generator: add `?seed=123` to the URL to get a reproducible run (same spawns, same upgrade offers)
-- Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, `?debug&items=arc:3,scatter:2` starts the run with those items, `?debug&t=270` starts 270 seconds in (to jump to a zone or boss) and `?debug&god` makes Jak take no damage
+- Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, `?debug&items=arc:3,scatter:2` starts the run with those items, `?debug&t=270` starts 270 seconds in (to jump to a zone or boss) and `?debug&god` makes Jak take no damage and `?debug&map=jak2` plays a map even if it is locked
 - GitHub Actions: typecheck, unit tests and build on every push; deploys to GitHub Pages from `main`
 
 ```bash

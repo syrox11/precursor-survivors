@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage } from '../config';
+import { MAPS } from '../logic/maps';
 import { CHALLENGES, type RunSummary } from '../logic/meta';
 import { formatTime } from '../logic/records';
 import { loadSave, recordRun, writeSave } from '../logic/save';
@@ -40,6 +41,7 @@ export class GameOverScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     const rewards = [`+${reward.earned} Precursor batteries  (total ${reward.save.batteries})`];
+    if (reward.unlockedMap) rewards.push(`New map unlocked: ${MAPS[reward.unlockedMap].name}!`);
     for (const id of reward.completed) {
       const challenge = CHALLENGES[id];
       const skin = challenge.unlocksSkin ? ' and a new skin' : '';

@@ -238,6 +238,128 @@ export class BootScene extends Phaser.Scene {
       g.fillStyle(0x80ffdb).fillCircle(15, 34, 4); // precursor light
     });
 
+    // ---- Jak II ----
+
+    this.texture('krimzonGuard', 28, 36, (g) => {
+      g.fillStyle(0x3b3b3b).fillRect(8, 28, 5, 8).fillRect(15, 28, 5, 8); // legs
+      g.fillStyle(0xb71c1c).fillRoundedRect(4, 12, 20, 18, 4); // red armour
+      g.fillStyle(0x8d99ae).fillRoundedRect(6, 0, 16, 14, 6); // helmet
+      g.fillStyle(0xffd60a).fillRect(8, 6, 12, 3); // visor
+      g.fillStyle(0x6c757d).fillRect(20, 16, 8, 4); // baton
+    });
+
+    this.texture('guardGunner', 30, 36, (g) => {
+      g.fillStyle(0x3b3b3b).fillRect(8, 28, 5, 8).fillRect(15, 28, 5, 8);
+      g.fillStyle(0x7f1d1d).fillRoundedRect(4, 12, 20, 18, 4);
+      g.fillStyle(0x8d99ae).fillRoundedRect(6, 0, 16, 14, 6);
+      g.fillStyle(0xff5400).fillRect(8, 6, 12, 3);
+      g.fillStyle(0x212529).fillRect(16, 17, 14, 5); // rifle
+    });
+
+    this.texture('metalGrunt', 32, 32, (g) => {
+      g.fillStyle(0x2b2d42).fillEllipse(16, 18, 30, 26);
+      g.fillStyle(0x52b788).fillTriangle(4, 10, 8, 0, 12, 9).fillTriangle(20, 9, 24, 0, 28, 10); // horns
+      g.fillStyle(0x95d5b2).fillCircle(16, 12, 4); // skull gem
+      g.fillStyle(0xe5383b).fillCircle(11, 19, 2).fillCircle(21, 19, 2);
+    });
+
+    this.texture('metalFlitter', 28, 20, (g) => {
+      g.fillStyle(0x52b788, 0.7).fillTriangle(0, 2, 12, 10, 3, 18).fillTriangle(28, 2, 16, 10, 25, 18);
+      g.fillStyle(0x2b2d42).fillEllipse(14, 10, 12, 14);
+      g.fillStyle(0x95d5b2).fillCircle(14, 7, 2.5);
+    });
+
+    this.texture('metalBrute', 44, 40, (g) => {
+      g.fillStyle(0x1b1c2b).fillEllipse(22, 24, 42, 32);
+      g.fillStyle(0x495057).fillRoundedRect(8, 10, 28, 12, 4); // metal plating
+      g.fillStyle(0x52b788).fillTriangle(6, 14, 2, 0, 14, 10).fillTriangle(38, 14, 42, 0, 30, 10);
+      g.fillStyle(0x95d5b2).fillCircle(22, 16, 5);
+      g.fillStyle(0xe5383b).fillCircle(15, 26, 2.5).fillCircle(29, 26, 2.5);
+    });
+
+    this.texture('errol', 70, 50, (g) => {
+      g.fillStyle(0x495057).fillRoundedRect(0, 30, 70, 14, 7); // hover bike
+      g.fillStyle(0xff5400).fillRect(2, 44, 66, 4); // thrusters
+      g.fillStyle(0xb71c1c).fillRoundedRect(22, 10, 26, 24, 6); // Errol's armour
+      g.fillStyle(0xf0c090).fillCircle(35, 8, 8);
+      g.fillStyle(0xe63946).fillCircle(38, 7, 2.5); // cybernetic eye
+      g.fillStyle(0xd9a441).fillTriangle(27, 4, 35, -2, 43, 4); // hair
+    });
+
+    this.texture('krew', 96, 90, (g) => {
+      g.fillStyle(0x495057).fillEllipse(48, 78, 80, 20); // hover chair
+      g.fillStyle(0x80b918).fillEllipse(48, 50, 84, 60); // body
+      g.fillStyle(0xaacc00).fillEllipse(48, 58, 50, 34);
+      g.fillStyle(0x80b918).fillCircle(48, 20, 18); // head
+      g.fillStyle(0x1a1a1a).fillCircle(42, 18, 2.5).fillCircle(54, 18, 2.5);
+      g.fillStyle(0xd62828).fillRect(40, 0, 16, 6); // fez
+      g.fillStyle(0x6c757d).fillCircle(8, 48, 8).fillCircle(88, 48, 8); // rings
+    });
+
+    this.texture('praxis', 56, 64, (g) => {
+      g.fillStyle(0x7f1d1d).fillTriangle(4, 60, 28, 14, 52, 60); // cape
+      g.fillStyle(0x6c757d).fillRoundedRect(14, 18, 28, 32, 6); // armour
+      g.fillStyle(0xadb5bd).fillRect(10, 18, 36, 8); // shoulders
+      g.fillStyle(0x343a40).fillRect(18, 50, 8, 14).fillRect(30, 50, 8, 14);
+      g.fillStyle(0xd9a877).fillCircle(28, 11, 9);
+      g.fillStyle(0x6c757d).fillRect(19, 2, 18, 6); // helmet
+      g.fillStyle(0xadb5bd).fillCircle(28, 34, 5); // emblem
+    });
+
+    this.texture('metalKor', 124, 110, (g) => {
+      g.fillStyle(0x1b1c2b).fillEllipse(62, 66, 116, 84); // body
+      g.fillStyle(0x52b788).fillTriangle(20, 40, 4, 0, 40, 28).fillTriangle(104, 40, 120, 0, 84, 28); // horns
+      g.fillStyle(0x2b2d42).fillEllipse(62, 70, 70, 44);
+      g.fillStyle(0x95d5b2).fillCircle(62, 36, 16); // the big skull gem
+      g.fillStyle(0xd8f3dc).fillCircle(58, 32, 6);
+      g.fillStyle(0xe5383b).fillCircle(46, 60, 5).fillCircle(78, 60, 5);
+    });
+
+    this.texture('laserBolt', 16, 6, (g) => {
+      g.fillStyle(0xff5400).fillRoundedRect(0, 0, 16, 6, 3);
+      g.fillStyle(0xffd60a).fillRoundedRect(4, 1, 10, 4, 2);
+    });
+
+    this.texture('lamp', 20, 60, (g) => {
+      g.fillStyle(0x495057).fillRect(8, 10, 4, 50);
+      g.fillStyle(0xffd60a, 0.35).fillCircle(10, 8, 10);
+      g.fillStyle(0xffe066).fillCircle(10, 8, 4);
+    });
+
+    this.texture('crate', 30, 30, (g) => {
+      g.fillStyle(0x8d6e4b).fillRect(0, 0, 30, 30);
+      g.lineStyle(3, 0x5c4326).strokeRect(2, 2, 26, 26).lineBetween(2, 2, 28, 28);
+    });
+
+    this.texture('pipe', 80, 22, (g) => {
+      g.fillStyle(0x5c6b5a).fillRoundedRect(0, 4, 80, 14, 7);
+      g.fillStyle(0x3f4a3c).fillRect(18, 2, 6, 18).fillRect(56, 2, 6, 18); // joints
+    });
+
+    this.texture('puddle', 60, 30, (g) => {
+      g.fillStyle(0x6a994e, 0.6).fillEllipse(30, 15, 60, 28);
+      g.fillStyle(0xa7c957, 0.5).fillEllipse(24, 12, 20, 8);
+    });
+
+    this.texture('statue', 34, 64, (g) => {
+      g.fillStyle(0x8c7448).fillRect(2, 54, 30, 10); // plinth
+      g.fillStyle(0xd6c08f).fillRoundedRect(8, 16, 18, 38, 4);
+      g.fillStyle(0xd6c08f).fillCircle(17, 10, 9);
+      g.fillStyle(0x80ffdb).fillCircle(17, 10, 3); // precursor glow
+    });
+
+    this.texture('torch', 16, 40, (g) => {
+      g.fillStyle(0x5c4326).fillRect(6, 14, 4, 26);
+      g.fillStyle(0xff5400).fillTriangle(2, 14, 8, 0, 14, 14);
+      g.fillStyle(0xffd60a).fillTriangle(5, 14, 8, 5, 11, 14);
+    });
+
+    this.texture('eggPod', 36, 40, (g) => {
+      g.fillStyle(0x2d6a4f).fillEllipse(18, 22, 32, 36);
+      g.fillStyle(0x95d5b2, 0.6).fillEllipse(18, 18, 16, 20);
+      g.fillStyle(0x1b4332).fillRect(6, 34, 24, 6);
+    });
+
     for (const map of Object.values(MAPS)) {
       map.zones.forEach((zone, i) => {
         this.texture(groundTexture(map.id, i), 64, 64, (g) => drawGround(g, zone.ground));

@@ -1,5 +1,6 @@
 import type { Point } from './combat/types';
 import { ITEMS, type ItemId, type Loadout } from './logic/items';
+import { MAPS, type MapId } from './logic/maps';
 
 /** Read-only view of a run, exposed on `window.__precursor` when the URL has `?debug`. */
 export interface DebugSnapshot {
@@ -55,6 +56,12 @@ export function debugStartTime(search: string): number {
 /** `?debug&god`: Jak takes no damage, so tests can reach late-game states. */
 export function debugGodMode(search: string): boolean {
   return debugEnabled(search) && new URLSearchParams(search).has('god');
+}
+
+/** `?map=jak2` plays that map whether or not it is unlocked (debug only). */
+export function debugMap(search: string): MapId | undefined {
+  const map = new URLSearchParams(search).get('map');
+  return map && map in MAPS ? (map as MapId) : undefined;
 }
 
 export function exposeDebug(snapshot: () => DebugSnapshot): void {

@@ -1,7 +1,9 @@
 import type { SpawnEntry } from './waves';
 
-export type MapId = 'jak1';
-export type BossId = 'darkEcoPlant' | 'klaww' | 'giantSpider' | 'golMaiaRobot';
+export type MapId = 'jak1' | 'jak2';
+export type BossId =
+  | 'darkEcoPlant' | 'klaww' | 'giantSpider' | 'golMaiaRobot'
+  | 'errol' | 'krew' | 'praxis' | 'metalKor';
 
 export interface BossDef {
   id: BossId;
@@ -21,6 +23,10 @@ export const BOSSES: Record<BossId, BossDef> = {
   klaww: { id: 'klaww', name: 'Klaww', texture: 'klaww', hp: 600, radius: 40, dps: 26, orbs: 30 },
   giantSpider: { id: 'giantSpider', name: 'Giant Lava Spider', texture: 'giantSpider', hp: 1100, radius: 38, dps: 30, orbs: 35 },
   golMaiaRobot: { id: 'golMaiaRobot', name: "Gol and Maia's Precursor Robot", texture: 'golMaiaRobot', hp: 1400, radius: 50, dps: 36, orbs: 60 },
+  errol: { id: 'errol', name: 'Errol', texture: 'errol', hp: 600, radius: 30, dps: 24, orbs: 25 },
+  krew: { id: 'krew', name: 'Krew', texture: 'krew', hp: 750, radius: 44, dps: 22, orbs: 30 },
+  praxis: { id: 'praxis', name: 'Baron Praxis', texture: 'praxis', hp: 1100, radius: 34, dps: 30, orbs: 35 },
+  metalKor: { id: 'metalKor', name: 'Metal Kor', texture: 'metalKor', hp: 1500, radius: 52, dps: 38, orbs: 60 },
 };
 
 export interface GroundStyle {
@@ -92,7 +98,58 @@ export const MAPS: Record<MapId, MapDef> = {
       },
     ],
   },
+  jak2: {
+    id: 'jak2',
+    name: 'Renegade',
+    zones: [
+      {
+        name: 'Haven City',
+        ground: { base: 0x7a7f87, speckA: 0x5c6168, speckB: 0x9aa0a8 },
+        decor: ['lamp', 'crate'],
+        pool: [
+          { enemy: 'krimzonGuard', weight: 3 }, { enemy: 'guardGunner', weight: 2, after: 30 },
+          { enemy: 'metalGrunt', weight: 1, after: 60 },
+        ],
+        boss: 'errol',
+        quote: 'Welcome to Haven City. Lovely place. Our faces on every wanted poster.',
+      },
+      {
+        name: 'The Sewers',
+        ground: { base: 0x3f4a3c, speckA: 0x2b332a, speckB: 0x5e7d4f },
+        decor: ['pipe', 'puddle'],
+        pool: [{ enemy: 'metalFlitter', weight: 3 }, { enemy: 'metalGrunt', weight: 2 }, { enemy: 'guardGunner', weight: 1 }],
+        boss: 'krew',
+        quote: 'Sewers. Why is it always sewers?',
+      },
+      {
+        name: "Mar's Tomb",
+        ground: { base: 0xb59b6a, speckA: 0x8c7448, speckB: 0xd6c08f },
+        decor: ['statue', 'torch'],
+        pool: [{ enemy: 'metalBrute', weight: 2 }, { enemy: 'metalFlitter', weight: 2 }, { enemy: 'guardGunner', weight: 2 }],
+        boss: 'praxis',
+        quote: 'Mar sure liked his traps. And his tombs. Mostly traps.',
+      },
+      {
+        name: 'Metal Head Nest',
+        ground: { base: 0x2d2a26, speckA: 0x1c1a17, speckB: 0x4f7a3a },
+        decor: ['eggPod', 'darkRock'],
+        pool: [
+          { enemy: 'metalGrunt', weight: 2 }, { enemy: 'metalBrute', weight: 2 }, { enemy: 'metalFlitter', weight: 2 },
+          { enemy: 'krimzonGuard', weight: 1 },
+        ],
+        boss: 'metalKor',
+        quote: "The Metal Head Nest. Jak, I changed my mind, let's go home!",
+      },
+    ],
+  },
 };
+
+/** Maps in unlock order: winning one unlocks the next. */
+export const MAP_ORDER: MapId[] = ['jak1', 'jak2'];
+
+export function nextMap(map: MapId): MapId | undefined {
+  return MAP_ORDER[MAP_ORDER.indexOf(map) + 1];
+}
 
 /**
  * Boss HP scales more gently than regular enemies, or late bosses become damage sponges:

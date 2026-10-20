@@ -18,7 +18,7 @@ export class TitleScene extends Phaser.Scene {
     this.add.text(cx, 110, 'PRECURSOR SURVIVORS', { fontFamily: FONT, fontSize: '52px', color: COLORS.accent, fontStyle: 'bold' })
       .setOrigin(0.5)
       .setStroke('#3a2a10', 8);
-    this.add.text(cx, 165, 'Survive 10 minutes and defeat Gol and Maia to earn a Power Cell', {
+    this.add.text(cx, 165, 'Survive 10 minutes and defeat the final boss to earn a Power Cell', {
       fontFamily: FONT, fontSize: '18px', color: COLORS.text,
     }).setOrigin(0.5);
 

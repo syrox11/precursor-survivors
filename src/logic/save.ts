@@ -1,4 +1,5 @@
 import { ITEMS, type ItemId, type WeaponId } from './items';
+import { MAP_ORDER, nextMap, type MapId } from './maps';
 import {
   BAN_SLOT_COSTS, batteriesForRun, CHALLENGES, COMPANIONS, POWER_UPS, powerUpCost, SKINS, WEAPON_UNLOCK_COST,
   type ChallengeId, type CompanionId, type PowerUpId, type RunSummary, type SkinId,
@@ -13,6 +14,7 @@ export const SAVE_VERSION = 1;
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>;
 
 export interface RunSetup {
+  map: MapId;
   weapon: WeaponId;
   companion: CompanionId;
   skin: SkinId;
@@ -26,6 +28,8 @@ export interface SaveData {
   weapons: WeaponId[];
   companions: CompanionId[];
   skins: SkinId[];
+  /** Maps you can pick; winning one unlocks the next. */
+  maps: MapId[];
   powerUps: Partial<Record<PowerUpId, number>>;
   banSlots: number;
   setup: RunSetup;
@@ -42,9 +46,10 @@ export function defaultSave(): SaveData {
     weapons: ['spin'],
     companions: ['daxter'],
     skins: ['jak1'],
+    maps: ['jak1'],
     powerUps: {},
     banSlots: 0,
-    setup: { weapon: 'spin', companion: 'daxter', skin: 'jak1', banned: [] },
+    setup: { map: 'jak1', weapon: 'spin', companion: 'daxter', skin: 'jak1', banned: [] },
     bestTime: 0,
     runs: 0,
     wins: 0,
@@ -66,13 +71,14 @@ function idList<T extends string>(value: unknown, known: readonly T[], defaults:
 /** Falls back to defaults for anything that isn't owned or allowed, and trims bans to the owned slots. */
 export function sanitizeSetup(save: Omit<SaveData, 'setup'>, setup: Partial<RunSetup> | undefined): RunSetup {
   const fallback = defaultSave().setup;
+  const map = setup?.map && save.maps.includes(setup.map) ? setup.map : fallback.map;
   const weapon = setup?.weapon && save.weapons.includes(setup.weapon) ? setup.weapon : fallback.weapon;
   const companion = setup?.companion && save.companions.includes(setup.companion) ? setup.companion : fallback.companion;
   const skin = setup?.skin && save.skins.includes(setup.skin) ? setup.skin : fallback.skin;
   const banned = idList(setup?.banned, Object.keys(ITEMS) as ItemId[], [])
     .filter((id) => id !== weapon)
     .slice(0, save.banSlots);
-  return { weapon, companion, skin, banned };
+  return { map, weapon, companion, skin, banned };
 }
 
 export function parseSave(raw: string | null, legacyBestTime: string | null = null): SaveData {
@@ -97,6 +103,7 @@ export function parseSave(raw: string | null, legacyBestTime: string | null = nu
     weapons: idList(data.weapons, Object.keys(WEAPON_UNLOCK_COST) as WeaponId[], defaults.weapons),
     companions: idList(data.companions, Object.keys(COMPANIONS) as CompanionId[], defaults.companions),
     skins: idList(data.skins, Object.keys(SKINS) as SkinId[], defaults.skins),
+    maps: idList(data.maps, MAP_ORDER, defaults.maps),
     powerUps,
     banSlots: count(data.banSlots, BAN_SLOT_COSTS.length),
     bestTime: Math.max(count(data.bestTime), count(Number(legacyBestTime))),
@@ -172,6 +179,8 @@ export interface RunReward {
   earned: number;
   completed: ChallengeId[];
   newRecord: boolean;
+  /** Set when this win unlocked a new map. */
+  unlockedMap?: MapId;
 }
 
 export function recordRun(save: SaveData, run: RunSummary): RunReward {
@@ -180,6 +189,8 @@ export function recordRun(save: SaveData, run: RunSummary): RunReward {
     .filter((id) => !save.challenges.includes(id) && CHALLENGES[id].isMet(run));
   const challengeBatteries = completed.reduce((sum, id) => sum + CHALLENGES[id].reward, 0);
   const unlockedSkins = completed.map((id) => CHALLENGES[id].unlocksSkin).filter((s): s is SkinId => !!s);
+  const next = run.won ? nextMap(run.map) : undefined;
+  const unlockedMap = next && !save.maps.includes(next) ? next : undefined;
 
   return {
     save: {
@@ -190,9 +201,11 @@ export function recordRun(save: SaveData, run: RunSummary): RunReward {
       wins: save.wins + (run.won ? 1 : 0),
       challenges: [...save.challenges, ...completed],
       skins: [...new Set([...save.skins, ...unlockedSkins])],
+      maps: unlockedMap ? [...save.maps, unlockedMap] : save.maps,
     },
     earned,
     completed,
     newRecord: Math.floor(run.time) > save.bestTime,
+    unlockedMap,
   };
 }

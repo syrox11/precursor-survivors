@@ -27,7 +27,7 @@ const blockedStore: KeyValueStore = {
 
 const rich = (batteries = 1000): SaveData => ({ ...defaultSave(), batteries });
 const run = (overrides: Partial<RunSummary> = {}): RunSummary => ({
-  won: false, time: 0, kills: 0, level: 1, bossesDefeated: 0, ...overrides,
+  map: 'jak1', won: false, time: 0, kills: 0, level: 1, bossesDefeated: 0, ...overrides,
 });
 
 describe('loading and saving', () => {
@@ -170,6 +170,30 @@ describe('recordRun', () => {
     const second = recordRun(first.save, run({ time: 60 }));
     expect(second.newRecord).toBe(false);
     expect(second.save.bestTime).toBe(120);
+  });
+});
+
+describe('map unlocks', () => {
+  it('starts with only the Jak 1 map', () => {
+    expect(defaultSave().maps).toEqual(['jak1']);
+  });
+
+  it('unlocks the next map when you win, once', () => {
+    const first = recordRun(defaultSave(), run({ map: 'jak1', won: true, time: 600 }));
+    expect(first.unlockedMap).toBe('jak2');
+    expect(first.save.maps).toEqual(['jak1', 'jak2']);
+    const again = recordRun(first.save, run({ map: 'jak1', won: true, time: 600 }));
+    expect(again.unlockedMap).toBeUndefined();
+    expect(again.save.maps).toEqual(['jak1', 'jak2']);
+  });
+
+  it('does not unlock anything on a loss', () => {
+    expect(recordRun(defaultSave(), run({ map: 'jak1', won: false, time: 500 })).save.maps).toEqual(['jak1']);
+  });
+
+  it('falls back to Jak 1 if the saved setup points at a locked map', () => {
+    expect(parseSave(JSON.stringify({ setup: { map: 'jak2' } })).setup.map).toBe('jak1');
+    expect(parseSave(JSON.stringify({ maps: ['jak2'], setup: { map: 'jak2' } })).setup.map).toBe('jak2');
   });
 });
 

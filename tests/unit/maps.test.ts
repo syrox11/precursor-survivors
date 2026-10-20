@@ -1,33 +1,41 @@
 import { describe, expect, it } from 'vitest';
 import { RUN_DURATION } from '../../src/config';
 import {
-  BOSS_LEAD, BOSSES, bossesDue, bossHpMultiplier, bossSpawnTime, MAPS, ZONE_DURATION, zoneChanged, zoneIndexAt,
+  BOSS_LEAD, BOSSES, bossesDue, bossHpMultiplier, bossSpawnTime, MAP_ORDER, MAPS, nextMap, ZONE_DURATION, zoneChanged,
+  zoneIndexAt,
 } from '../../src/logic/maps';
 import { ENEMIES, hpMultiplier } from '../../src/logic/waves';
 
 const jak1 = MAPS.jak1;
 
-describe('the Jak 1 map', () => {
+describe.each(Object.values(MAPS))('the $name map', (map) => {
   it('fills the whole run with its zones', () => {
-    expect(jak1.zones.length * ZONE_DURATION).toBe(RUN_DURATION);
+    expect(map.zones.length * ZONE_DURATION).toBe(RUN_DURATION);
   });
 
   it('only uses enemies and bosses that exist', () => {
-    for (const zone of jak1.zones) {
+    for (const zone of map.zones) {
       expect(BOSSES[zone.boss]).toBeDefined();
       for (const entry of zone.pool) expect(ENEMIES[entry.enemy]).toBeDefined();
     }
   });
 
   it('has a different boss in every zone', () => {
-    expect(new Set(jak1.zones.map((z) => z.boss)).size).toBe(jak1.zones.length);
+    expect(new Set(map.zones.map((z) => z.boss)).size).toBe(map.zones.length);
   });
 
   it('can spawn something from the first second of every zone', () => {
-    jak1.zones.forEach((zone, i) => {
-      const zoneStart = i * ZONE_DURATION;
-      expect(zone.pool.some((entry) => (entry.after ?? 0) <= zoneStart)).toBe(true);
+    map.zones.forEach((zone, i) => {
+      expect(zone.pool.some((entry) => (entry.after ?? 0) <= i * ZONE_DURATION)).toBe(true);
     });
+  });
+});
+
+describe('map order', () => {
+  it('lists every map once and chains them', () => {
+    expect([...MAP_ORDER].sort()).toEqual(Object.keys(MAPS).sort());
+    expect(nextMap('jak1')).toBe('jak2');
+    expect(nextMap(MAP_ORDER[MAP_ORDER.length - 1])).toBeUndefined();
   });
 });
 
