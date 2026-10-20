@@ -70,6 +70,8 @@ const KNOCKBACK_DECAY = 8;
 const SPAWN_DISTANCE = Math.hypot(GAME_WIDTH, GAME_HEIGHT) / 2 + 40;
 const BOSS_SPAWN_DISTANCE = 380;
 const BOSS_AIM_BIAS = 250;
+const MAX_ORBS = 200;
+const MAX_EXPLOSION_FX = 24;
 const CHARGE_EVERY = 3;
 const CHARGE_TIME = 0.45;
 const CHARGE_SPEED = 3.2;
@@ -137,6 +139,8 @@ export class GameScene extends Phaser.Scene {
   /** Titles of gift upgrade picks waiting to be shown, e.g. Brutter's. */
   private pendingGifts: string[] = [];
   private bonusBatteries = 0;
+  /** Explosion circles currently animating. */
+  private explosionFx = 0;
   /** Timed buffs from pickups and characters; "until" values are run seconds. */
   private buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
   /** Chest upgrades for a gun colour or one weapon, for the rest of the run. */
@@ -365,6 +369,7 @@ export class GameScene extends Phaser.Scene {
     this.victoryAt = 0;
     this.pendingGifts = [];
     this.bonusBatteries = 0;
+    this.explosionFx = 0;
     this.buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
     this.weaponMods = [];
     this.decoys = [];
@@ -603,9 +608,7 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < boss.def.orbs; i++) {
       const angle = this.rng() * Math.PI * 2;
       const distance = 20 + this.rng() * 70;
-      const sprite = this.add.image(enemy.sprite.x + Math.cos(angle) * distance, enemy.sprite.y + Math.sin(angle) * distance, 'orb')
-        .setDepth(DEPTH.orb).setScale(1.3);
-      this.orbs.push({ sprite, value: 2, kind: 'xp', attracted: false });
+      this.dropOrb({ x: enemy.sprite.x + Math.cos(angle) * distance, y: enemy.sprite.y + Math.sin(angle) * distance }, 2);
     }
     for (let i = 0; i < BOSS_WISPS * 2; i++) {
       const angle = (i / (BOSS_WISPS * 2)) * Math.PI * 2;
@@ -1113,8 +1116,18 @@ export class GameScene extends Phaser.Scene {
 
   private explode(at: Point, radius: number, damage: number, color: number): void {
     const { x, y } = at;
-    const fx = this.add.circle(x, y, radius, color, 0.45).setDepth(DEPTH.fx).setScale(0.2);
-    this.tweens.add({ targets: fx, scale: 1, alpha: 0, duration: 300, onComplete: () => fx.destroy() });
+    // Past a handful of explosions on screen more circles add nothing visible but still cost frames
+    if (this.explosionFx < MAX_EXPLOSION_FX) {
+      this.explosionFx++;
+      const fx = this.add.circle(x, y, radius, color, 0.45).setDepth(DEPTH.fx).setScale(0.2);
+      this.tweens.add({
+        targets: fx, scale: 1, alpha: 0, duration: 300,
+        onComplete: () => {
+          fx.destroy();
+          this.explosionFx--;
+        },
+      });
+    }
     for (const enemy of [...this.enemies]) {
       if (Math.hypot(enemy.sprite.x - x, enemy.sprite.y - y) <= radius + enemy.def.radius) {
         this.damageEnemy(enemy, damage, { x, y });
@@ -1144,8 +1157,7 @@ export class GameScene extends Phaser.Scene {
     const { x, y } = enemy.sprite;
     enemy.sprite.destroy();
     if (enemy.def.xp > 0) {
-      const orb = this.add.image(x, y, 'orb').setDepth(DEPTH.orb).setScale(enemy.def.xp > 1 ? 1.3 : 1);
-      this.orbs.push({ sprite: orb, value: enemy.def.xp, kind: 'xp', attracted: false });
+      this.dropOrb({ x, y }, enemy.def.xp);
       const wisp = rollWisp(this.rng);
       if (wisp) this.dropWisp(wisp, { x: x + 10, y: y - 6 });
       const drop = rollEnemyDrop(this.rng);
@@ -1153,9 +1165,38 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * A Precursor orb or eco wisp on the ground. Past MAX_ORBS the value merges into the closest one of the
+   * same kind instead, which grows a little: thousands of them on the map used to slow the whole game to a
+   * crawl. Nothing is ever lost.
+   */
+  private dropOrb(at: Point, value: number, kind: Orb['kind'] = 'xp'): void {
+    if (this.orbs.length >= MAX_ORBS) {
+      let closest: Orb | undefined;
+      let best = Infinity;
+      for (const orb of this.orbs) {
+        if (orb.kind !== kind) continue;
+        const d = (orb.sprite.x - at.x) ** 2 + (orb.sprite.y - at.y) ** 2;
+        if (d < best) {
+          best = d;
+          closest = orb;
+        }
+      }
+      if (closest) {
+        closest.value += value;
+        // Wisps start at WISP_VALUE, orbs at 1, so size by how many drops have merged in
+        const merged = kind === 'xp' ? closest.value : closest.value / WISP_VALUE;
+        closest.sprite.setScale(Math.min(2.4, 1 + Math.sqrt(merged) * 0.15));
+        return;
+      }
+    }
+    const texture = kind === 'xp' ? 'orb' : kind === 'light' ? 'lightWisp' : 'darkWisp';
+    const sprite = this.add.image(at.x, at.y, texture).setDepth(DEPTH.orb).setScale(kind === 'xp' && value > 1 ? 1.3 : 1);
+    this.orbs.push({ sprite, value, kind, attracted: false });
+  }
+
   private dropWisp(mode: EcoMode, at: Point): void {
-    const sprite = this.add.image(at.x, at.y, mode === 'light' ? 'lightWisp' : 'darkWisp').setDepth(DEPTH.orb);
-    this.orbs.push({ sprite, value: WISP_VALUE, kind: mode, attracted: false });
+    this.dropOrb(at, WISP_VALUE, mode);
   }
 
   // ---- Orbs and levels ----
