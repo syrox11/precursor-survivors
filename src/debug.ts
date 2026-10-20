@@ -81,3 +81,8 @@ export function exposeDebug(snapshot: () => DebugSnapshot): void {
 export function debugUnlockAll(search: string): boolean {
   return debugEnabled(search) && new URLSearchParams(search).has('unlockAll');
 }
+
+/** `?debug&endless`: start straight in endless mode, as if the final boss had just fallen at 10:00. */
+export function debugEndless(search: string): boolean {
+  return debugEnabled(search) && new URLSearchParams(search).has('endless');
+}

@@ -6,7 +6,7 @@ import { HostileSystem } from '../combat/hostiles';
 import { createWeapon, type Weapon } from '../combat/weapons';
 import type { Combat, Enemy, EnemyStats, Point, ProjectileSpec } from '../combat/types';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage, PLAYER_RADIUS, RUN_DURATION, WORLD_SIZE } from '../config';
-import { debugEco, debugEnabled, debugGodMode, debugLoadout, debugMap, debugStartTime, exposeDebug } from '../debug';
+import { debugEco, debugEnabled, debugEndless, debugGodMode, debugLoadout, debugMap, debugStartTime, exposeDebug } from '../debug';
 import {
   applyItem, ITEMS, levelOf, ownedOfKind, rollChoices, SLOTS, STARTING_LOADOUT, startingLoadout,
   type ItemId, type Loadout, type WeaponId,
@@ -205,6 +205,13 @@ export class GameScene extends Phaser.Scene {
       this.elapsed = debugStartTime(search);
       this.zone = zoneIndexAt(this.map, this.elapsed);
       this.godMode = debugGodMode(search);
+      if (debugEndless(search)) {
+        // Every boss counts as already met and the final one as beaten: the first frame claims the Power Cell
+        this.elapsed = Math.max(this.elapsed, RUN_DURATION);
+        this.zone = zoneIndexAt(this.map, this.elapsed);
+        this.map.zones.forEach((_, i) => this.spawnedBosses.add(i));
+        this.finalBossDefeated = true;
+      }
       const eco = Math.min(METER_MAX, debugEco(search));
       this.eco = { light: eco, dark: eco, active: null };
     }
