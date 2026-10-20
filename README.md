@@ -70,6 +70,22 @@ Each map follows one game. Every 2:30 the zone changes (ground, scenery and enem
 | 5:00 | Precursor Temple | Precursor Drones (zigzag), Temple Guardians (charge) | Count Veger (7:00): blinks around you and fires a ring each time, summons drones |
 | 7:30 | Haven City Ruins | KG Death Bots and Gunner Bots | Dark Maker Machine (9:30): laser sweeps, Death Bot drops, charges when damaged |
 
+### Out in the field
+
+- **Precursor chests** show up every so often (and when a boss falls). Walk over one to open it: a big **health** boost, a large **blue eco** orb that pulls in every Precursor orb on the map, or a **JET-Board** for a burst of speed.
+- **Precursor oracles**, one per zone: touch one for a free level.
+- **Characters from the saga**, one per zone, picked from that game's cast. An arrow on the screen edge points the way; reach them before they leave and they help out.
+
+| Map | Characters |
+|-----|-----------|
+| Jak 1 | Samos, the Blue, Red and Yellow Sages, Keira, the Mayor, the Gambler, the Miners |
+| Jak II | Torn, Keira, Sig, Ashelin, Brutter, Tess, Samos, Vin |
+| Jak 3 | Kleiver, Damas, Torn, Ashelin, Keira, Samos, Tess, the Precursors |
+
+Their gifts fit the character: Keira upgrades a weapon, Samos heals you and raises your max health, Torn, Sig, Ashelin and Damas fight next to you for 30 seconds, Vin raises an eco shield, the Yellow Sage wipes the screen with yellow eco, the Gambler hands out a random gift...
+
+Every hit shows its damage, and wounded enemies show a health bar.
+
 ### Between runs
 
 Every run pays out **Precursor batteries** (time survived, Lurkers defeated, bosses beaten, a bonus for the Power Cell). Spend them in the **shop**, then set up your next run:
@@ -98,7 +114,10 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [x] **Phase 4a:** zones and bosses; the Jak 1 map
 - [x] **Phase 4b:** the Jak II map, unlocked by winning the first one
 - [x] **Phase 4c:** the Jak 3 map, unlocked by winning the second one
-- [ ] **Phase 5:** E2E tests with Playwright on the canvas, performance checks
+- [x] **Phase 5a:** chests, oracles, saga characters, damage numbers and health bars
+- [ ] **Phase 5b:** Light Jak and Dark Jak: eco meters and activated powers
+- [ ] **Phase 5c:** more weapons
+- [ ] **Phase 6:** E2E tests with Playwright on the canvas, performance checks
 
 ## Tech
 

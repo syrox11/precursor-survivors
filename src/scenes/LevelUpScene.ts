@@ -4,7 +4,8 @@ import { ITEMS, levelOf, type ItemId, type Loadout } from '../logic/items';
 import { addButton } from '../ui/button';
 
 export interface LevelUpData {
-  level: number;
+  /** Headline, e.g. "LEVEL 5!" or a character's gift. */
+  title: string;
   choices: ItemId[];
   loadout: Loadout;
   rerollsLeft: number;
@@ -33,7 +34,7 @@ export class LevelUpScene extends Phaser.Scene {
 
     const cx = GAME_WIDTH / 2;
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6).setOrigin(0);
-    this.add.text(cx, 80, `LEVEL ${data.level}!`, { fontFamily: FONT, fontSize: '40px', color: COLORS.accent, fontStyle: 'bold' })
+    this.add.text(cx, 80, data.title, { fontFamily: FONT, fontSize: '40px', color: COLORS.accent, fontStyle: 'bold' })
       .setOrigin(0.5)
       .setStroke('#3a2a10', 6);
     this.add.text(cx, 125, 'Choose an upgrade', { fontFamily: FONT, fontSize: '18px', color: COLORS.text }).setOrigin(0.5);

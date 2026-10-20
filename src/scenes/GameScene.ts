@@ -1,13 +1,14 @@
 import * as Phaser from 'phaser';
 import { createBossAI, type BossAI, type BossContext } from '../combat/bosses';
 import { createCompanion, type Companion, type CompanionContext } from '../combat/companions';
+import { Allies } from '../combat/allies';
 import { HostileSystem } from '../combat/hostiles';
 import { createWeapon, type Weapon } from '../combat/weapons';
 import type { Combat, Enemy, EnemyStats, Point, ProjectileSpec } from '../combat/types';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage, PLAYER_RADIUS, RUN_DURATION, WORLD_SIZE } from '../config';
 import { debugEnabled, debugGodMode, debugLoadout, debugMap, debugStartTime, exposeDebug } from '../debug';
 import {
-  applyItem, ITEMS, ownedOfKind, rollChoices, STARTING_LOADOUT, startingLoadout,
+  applyItem, ITEMS, levelOf, ownedOfKind, rollChoices, STARTING_LOADOUT, startingLoadout,
   type ItemId, type Loadout, type WeaponId,
 } from '../logic/items';
 import {
@@ -22,6 +23,11 @@ import {
   damageMultiplier, ENEMIES, hordeSize, hpMultiplier, MAX_ENEMIES, pickEnemy, spawnInterval, type EnemyDef,
 } from '../logic/waves';
 import { gainXp, INITIAL_XP, xpToNextLevel, type XpState } from '../logic/xp';
+import { describeGift, gambleGift, type Gift, type NpcDef } from '../logic/npcs';
+import { HEALTH_PICKUP, JET_BOARD, type ChestContent } from '../logic/pickups';
+import { DamageNumbers } from '../ui/damageNumbers';
+import { Indicators } from '../ui/indicators';
+import { Field } from '../world/field';
 import type { RunResult } from './GameOverScene';
 import type { LevelUpData } from './LevelUpScene';
 
@@ -100,6 +106,19 @@ export class GameScene extends Phaser.Scene {
   private ended = false;
   private godMode = false;
 
+  private field!: Field;
+  private allies!: Allies;
+  private damageNumbers!: DamageNumbers;
+  private indicators!: Indicators;
+  private healthBars!: Phaser.GameObjects.Graphics;
+  private jetBoard!: Phaser.GameObjects.Image;
+  private shieldBubble!: Phaser.GameObjects.Arc;
+  /** Titles of gift upgrade picks waiting to be shown, e.g. Brutter's. */
+  private pendingGifts: string[] = [];
+  private bonusBatteries = 0;
+  /** Timed buffs from pickups and characters; "until" values are run seconds. */
+  private buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
+
   private hud!: {
     hpFill: Phaser.GameObjects.Rectangle;
     xpFill: Phaser.GameObjects.Rectangle;
@@ -156,6 +175,25 @@ export class GameScene extends Phaser.Scene {
     this.createHud();
     this.showZoneBanner();
 
+    this.allies = new Allies(this);
+    this.damageNumbers = new DamageNumbers(this);
+    this.indicators = new Indicators(this, DEPTH.hud);
+    this.healthBars = this.add.graphics().setDepth(DEPTH.enemy + 0.6);
+    this.jetBoard = this.add.image(center, center, 'jetBoardRide').setDepth(DEPTH.player - 0.1).setVisible(false);
+    this.shieldBubble = this.add.circle(center, center, 28, 0x80ffdb, 0.2)
+      .setStrokeStyle(2, 0x80ffdb, 0.9)
+      .setDepth(DEPTH.fx)
+      .setVisible(false);
+    this.field = new Field(this, this.rng, this.map, {
+      onChest: (content, at) => this.openChest(content, at),
+      onOracle: (at) => {
+        this.giveLevels(1);
+        this.floatText(at, '+1 LEVEL', '#80ffdb');
+        this.showBanner('PRECURSOR ORACLE', '"The path ahead grows clearer..."', '#80ffdb');
+      },
+      onNpc: (npc, at) => this.meetNpc(npc, at),
+    });
+
     if (debugEnabled(search)) {
       exposeDebug(() => ({
         elapsed: this.elapsed,
@@ -169,6 +207,7 @@ export class GameScene extends Phaser.Scene {
         bosses: this.enemies.filter((e) => e.boss).map((e) => ({ name: e.def.name, hp: e.hp, maxHp: e.maxHp })),
         bossesDefeated: this.bossesDefeated,
         orbs: this.orbs.map((o) => ({ x: o.sprite.x, y: o.sprite.y })),
+        field: this.field.snapshot(),
         loadout: { ...this.loadout },
         state: this.ended ? 'over' : this.scene.isPaused() ? 'levelUp' : 'playing',
       }));
@@ -182,6 +221,7 @@ export class GameScene extends Phaser.Scene {
     const previous = this.elapsed;
     this.elapsed += dt;
 
+    this.refreshStats();
     this.movePlayer(dt);
     if (zoneChanged(this.map, previous, this.elapsed)) this.enterZone(zoneIndexAt(this.map, this.elapsed));
     this.spawnBosses(previous);
@@ -189,17 +229,33 @@ export class GameScene extends Phaser.Scene {
     this.updateEnemies(dt);
     for (const [id, weapon] of this.weapons) weapon.update(dt, this.loadout[id] ?? 1, this.combat);
     this.companion.update(dt, this.companionContext);
+    this.allies.update(dt, this.combat, this.elapsed);
     this.updateProjectiles(dt);
     this.hostiles.update(dt, this.player);
     this.updateOrbs(dt);
+    this.field.update(dt, previous, this.elapsed, this.player);
 
     this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.regen * dt);
     this.updateHud();
+    this.drawHealthBars();
+    this.indicators.update(this.cameras.main, this.field.targets());
 
     if (this.hp <= 0) return this.endRun(false);
     // The Power Cell needs both: the full run time and the final boss down
     if (this.elapsed >= RUN_DURATION && this.finalBossDefeated) return this.endRun(true);
-    if (this.pendingLevelUps > 0) this.openLevelUp();
+    if (this.pendingLevelUps > 0) this.openLevelUp(`LEVEL ${this.xp.level - this.pendingLevelUps + 1}!`);
+    else if (this.pendingGifts.length > 0) this.openLevelUp(this.pendingGifts[0], true);
+  }
+
+  /** Item and permanent stats, then any timed buffs on top. Cheap enough to redo every frame. */
+  private refreshStats(): void {
+    const stats = computeStats(this.loadout, this.bonuses);
+    if (this.elapsed < this.buffs.damageUntil) stats.damageMultiplier *= this.buffs.damage;
+    if (this.elapsed < this.buffs.speedUntil) stats.moveSpeed *= this.buffs.speed;
+    this.stats = stats;
+    this.jetBoard.setVisible(this.elapsed < this.buffs.boardUntil);
+    const shielded = this.elapsed < this.buffs.invulnerableUntil;
+    this.shieldBubble.setVisible(shielded).setPosition(this.player.x, this.player.y);
   }
 
   private resetState(): void {
@@ -228,6 +284,9 @@ export class GameScene extends Phaser.Scene {
     this.spawnTimer = 0;
     this.ended = false;
     this.godMode = false;
+    this.pendingGifts = [];
+    this.bonusBatteries = 0;
+    this.buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
   }
 
   /** The view of the game that weapons get. Getters so they always see live values. */
@@ -388,7 +447,131 @@ export class GameScene extends Phaser.Scene {
       this.orbs.push({ sprite, value: 2, attracted: false });
     }
     this.cameras.main.shake(300, 0.008);
+    this.field.dropChest({ x: enemy.sprite.x, y: enemy.sprite.y });
     this.showBanner(`${boss.def.name.toUpperCase()} DEFEATED!`, undefined, COLORS.accent);
+  }
+
+  // ---- Chests, oracles and characters ----
+
+  private openChest(content: ChestContent, at: Point): void {
+    switch (content) {
+      case 'health':
+        this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * HEALTH_PICKUP);
+        this.floatText(at, '+HEALTH', '#38b000');
+        break;
+      case 'magnet':
+        this.attractAllOrbs();
+        this.floatText(at, 'BLUE ECO!', '#3a86ff');
+        break;
+      case 'jetBoard':
+        this.buffs.speed = JET_BOARD.speedMultiplier;
+        this.buffs.speedUntil = this.elapsed + JET_BOARD.seconds;
+        this.buffs.boardUntil = this.buffs.speedUntil;
+        this.floatText(at, 'JET-BOARD!', '#ffb703');
+        break;
+    }
+  }
+
+  private meetNpc(npc: NpcDef, at: Point): void {
+    const gift = npc.gift.kind === 'random' ? gambleGift(this.map.id, this.rng) : npc.gift;
+    this.applyGift(gift, npc, at);
+    this.showBanner(npc.name.toUpperCase(), `"${npc.line}"  ${describeGift(gift)}`, '#ffb703');
+  }
+
+  private applyGift(gift: Gift, npc: NpcDef, at: Point): void {
+    switch (gift.kind) {
+      case 'heal':
+        this.bonuses = { ...this.bonuses, maxHp: this.bonuses.maxHp + gift.maxHp };
+        this.refreshStats();
+        this.hp = this.stats.maxHp;
+        break;
+      case 'blueEco':
+        this.attractAllOrbs();
+        this.buffs.speed = 1.5;
+        this.buffs.speedUntil = this.elapsed + gift.seconds;
+        break;
+      case 'damageBuff':
+        this.buffs.damage = gift.multiplier;
+        this.buffs.damageUntil = this.elapsed + gift.seconds;
+        break;
+      case 'screenClear':
+        this.screenClear();
+        break;
+      case 'weaponUp':
+        this.upgradeRandomWeapon();
+        break;
+      case 'batteries':
+        this.bonusBatteries += gift.amount;
+        break;
+      case 'levels':
+        this.giveLevels(gift.amount);
+        if (gift.heal) this.hp = this.stats.maxHp;
+        break;
+      case 'pick':
+        this.pendingGifts.push(`${npc.name.toUpperCase()}'S GIFT`);
+        break;
+      case 'ally':
+        this.allies.add(npc.texture, gift.style, gift.seconds, at);
+        break;
+      case 'shield':
+        this.buffs.invulnerableUntil = this.elapsed + gift.seconds;
+        break;
+      case 'random':
+        break;
+    }
+  }
+
+  /** Levels without the XP: the level number goes up and each one opens a pick. */
+  private giveLevels(amount: number): void {
+    this.xp = { ...this.xp, level: this.xp.level + amount };
+    this.pendingLevelUps += amount;
+  }
+
+  private attractAllOrbs(): void {
+    for (const orb of this.orbs) orb.attracted = true;
+  }
+
+  /** Yellow eco storm: wipes every regular enemy on screen and chips the bosses. */
+  private screenClear(): void {
+    const view = this.cameras.main.worldView;
+    this.cameras.main.flash(400, 255, 214, 10);
+    for (const enemy of [...this.enemies]) {
+      if (!view.contains(enemy.sprite.x, enemy.sprite.y)) continue;
+      this.damageEnemy(enemy, enemy.boss ? enemy.maxHp * 0.1 : enemy.hp);
+    }
+  }
+
+  private upgradeRandomWeapon(): void {
+    const owned = ownedOfKind(this.loadout, 'weapon').filter((id) => levelOf(this.loadout, id) < ITEMS[id].maxLevel);
+    if (owned.length === 0) {
+      // Nothing left to upgrade: a free pick instead
+      this.pendingGifts.push('A FREE UPGRADE');
+      return;
+    }
+    const id = owned[Math.floor(this.rng() * owned.length)];
+    this.loadout = { ...this.loadout, [id]: levelOf(this.loadout, id) + 1 };
+    this.renderLoadout();
+  }
+
+  private floatText(at: Point, text: string, color: string): void {
+    const label = this.add.text(at.x, at.y - 20, text, {
+      fontFamily: FONT, fontSize: '18px', color, fontStyle: 'bold',
+    }).setOrigin(0.5).setStroke('#000000', 4).setDepth(DEPTH.fx);
+    this.tweens.add({ targets: label, y: label.y - 40, alpha: 0, duration: 1200, onComplete: () => label.destroy() });
+  }
+
+  /** One small bar over every hurt regular enemy; bosses use the HUD bar instead. */
+  private drawHealthBars(): void {
+    const g = this.healthBars;
+    g.clear();
+    for (const enemy of this.enemies) {
+      if (enemy.boss || enemy.hp >= enemy.maxHp) continue;
+      const width = enemy.def.radius * 2;
+      const x = enemy.sprite.x - enemy.def.radius;
+      const y = enemy.sprite.y - enemy.def.radius - 8;
+      g.fillStyle(0x000000, 0.6).fillRect(x - 1, y - 1, width + 2, 5);
+      g.fillStyle(0xe5383b, 1).fillRect(x, y, width * Math.max(0, enemy.hp / enemy.maxHp), 3);
+    }
   }
 
   // ---- Player ----
@@ -415,6 +598,7 @@ export class GameScene extends Phaser.Scene {
     this.companionSprite.y += (this.player.y - 18 - this.companionSprite.y) * lerp;
     this.companionSprite.setFlipX(this.player.flipX);
     this.speech?.setPosition(this.companionSprite.x, this.companionSprite.y - 22);
+    this.jetBoard.setPosition(this.player.x, this.player.y + 20);
 
     const cam = this.cameras.main;
     this.ground.tilePositionX = cam.scrollX;
@@ -428,7 +612,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Every source of damage to Jak goes through here: armor first, then the companion. */
   private hurt(amount: number): void {
-    if (this.godMode) return;
+    if (this.godMode || this.elapsed < this.buffs.invulnerableUntil) return;
     const taken = this.companion.absorb(amount * (1 - this.stats.armor), this.companionContext);
     this.hp -= taken;
     if (taken > 0 && this.hurtFlash <= 0) {
@@ -628,6 +812,7 @@ export class GameScene extends Phaser.Scene {
     enemy.hp -= amount;
     enemy.sprite.setTint(0xffaaaa);
     enemy.flash = 0.08;
+    this.damageNumbers.show(enemy.sprite.x, enemy.sprite.y - enemy.def.radius, amount, enemy.boss ? '#ffb703' : '#ffffff', !!enemy.boss);
     // Bosses don't get pushed around
     if (knockFrom && !enemy.boss) {
       const dx = enemy.sprite.x - knockFrom.x;
@@ -680,8 +865,10 @@ export class GameScene extends Phaser.Scene {
     this.pendingLevelUps += result.levelsGained;
   }
 
-  private openLevelUp(): void {
-    this.pendingLevelUps--;
+  /** Opens one upgrade pick: a level-up, or a gift when `gift` is set. */
+  private openLevelUp(title: string, gift = false): void {
+    if (gift) this.pendingGifts.shift();
+    else this.pendingLevelUps--;
     const roll = () => rollChoices(this.loadout, this.rng, this.setup.banned);
     const choices = roll();
     if (choices.length === 0) {
@@ -691,7 +878,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const data: LevelUpData = {
-      level: this.xp.level - this.pendingLevelUps,
+      title,
       choices,
       loadout: this.loadout,
       rerollsLeft: this.rerolls,
@@ -730,6 +917,7 @@ export class GameScene extends Phaser.Scene {
       kills: this.kills,
       level: this.xp.level,
       bossesDefeated: this.bossesDefeated,
+      bonusBatteries: this.bonusBatteries,
       orbs: this.orbsCollected,
     };
     this.scene.pause();

@@ -15,6 +15,8 @@ export interface DebugSnapshot {
   bosses: { name: string; hp: number; maxHp: number }[];
   bossesDefeated: number;
   orbs: Point[];
+  /** Chests, oracles and characters waiting on the map. */
+  field: { kind: 'chest' | 'oracle' | 'npc'; x: number; y: number }[];
   loadout: Loadout;
   state: 'playing' | 'levelUp' | 'over';
 }

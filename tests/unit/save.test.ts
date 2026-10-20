@@ -27,7 +27,7 @@ const blockedStore: KeyValueStore = {
 
 const rich = (batteries = 1000): SaveData => ({ ...defaultSave(), batteries });
 const run = (overrides: Partial<RunSummary> = {}): RunSummary => ({
-  map: 'jak1', won: false, time: 0, kills: 0, level: 1, bossesDefeated: 0, ...overrides,
+  map: 'jak1', won: false, time: 0, kills: 0, level: 1, bossesDefeated: 0, bonusBatteries: 0, ...overrides,
 });
 
 describe('loading and saving', () => {
@@ -140,6 +140,10 @@ describe('recordRun', () => {
     expect(earned).toBe(3 + 2);
     expect(save.batteries).toBe(5);
     expect(save.runs).toBe(1);
+  });
+
+  it('adds batteries handed out during the run', () => {
+    expect(recordRun(defaultSave(), run({ bonusBatteries: 15 })).earned).toBe(15);
   });
 
   it('pays a bonus per boss defeated', () => {

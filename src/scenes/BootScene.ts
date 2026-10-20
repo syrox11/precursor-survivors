@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { groundTexture, MAPS, type GroundStyle } from '../logic/maps';
 import type { SkinId } from '../logic/meta';
+import type { NpcId } from '../logic/npcs';
 
 interface JakLook {
   skin: number;
@@ -38,6 +39,52 @@ function drawJak(g: Phaser.GameObjects.Graphics, look: JakLook): void {
   g.fillStyle(look.goggles).fillRect(8, 7, 16, 3);
   if (look.goatee) g.fillStyle(look.goatee).fillTriangle(13, 17, 19, 17, 16, 22);
   g.fillStyle(look.eyes).fillCircle(13, 13, look.horns ? 2.2 : 1.5).fillCircle(19, 13, look.horns ? 2.2 : 1.5);
+}
+
+interface PersonLook {
+  skin: number;
+  hair: number;
+  top: number;
+  legs: number;
+  /** Something that makes them recognisable: a beard, a hat, a log seat... */
+  extra?: (g: Phaser.GameObjects.Graphics) => void;
+}
+
+const SAGE = (robe: number): PersonLook => ({
+  skin: robe, hair: 0xe9e3d0, top: 0x6f4518, legs: 0x5c4326,
+  extra: (g) => g.fillStyle(0x8b5a2b).fillRect(10, 2, 12, 4), // log seat hat
+});
+
+const NPC_LOOKS: Record<NpcId, PersonLook> = {
+  samos: { ...SAGE(0x52b788), extra: (g) => g.fillStyle(0x8b5a2b).fillRect(8, 0, 16, 5).fillStyle(0xe9e3d0).fillTriangle(12, 18, 20, 18, 16, 26) },
+  blueSage: SAGE(0x3a86ff),
+  redSage: SAGE(0xe5383b),
+  yellowSage: SAGE(0xffd60a),
+  keira: { skin: 0xf0c090, hair: 0x2a9d8f, top: 0x264653, legs: 0x6c757d, extra: (g) => g.fillStyle(0xd9a441).fillRect(8, 6, 16, 3) },
+  mayor: { skin: 0xf0c090, hair: 0x6c757d, top: 0x6a4c93, legs: 0x343a40, extra: (g) => g.fillStyle(0x212529).fillRect(9, -2, 14, 8) },
+  gambler: { skin: 0xd9a877, hair: 0x343a40, top: 0x2b9348, legs: 0x343a40, extra: (g) => g.fillStyle(0xffd60a).fillCircle(24, 22, 3) },
+  miners: { skin: 0xd9a877, hair: 0x5c4326, top: 0x8d6e4b, legs: 0x5c4326, extra: (g) => g.fillStyle(0xffd60a).fillRect(9, 0, 14, 6) },
+  torn: { skin: 0xf0c090, hair: 0x343a40, top: 0x495057, legs: 0x212529, extra: (g) => g.fillStyle(0x212529).fillRect(10, 2, 12, 3) },
+  sig: { skin: 0x8d5524, hair: 0x343a40, top: 0x6f4518, legs: 0x495057, extra: (g) => g.fillStyle(0x6c757d).fillRect(6, 6, 20, 4) },
+  ashelin: { skin: 0xf0c090, hair: 0xe5383b, top: 0x7f1d1d, legs: 0x343a40 },
+  brutter: { skin: 0x7b4fa0, hair: 0x5a3478, top: 0xd62828, legs: 0x5a3478, extra: (g) => g.fillStyle(0xffd60a).fillCircle(12, 13, 2).fillCircle(20, 13, 2) },
+  tess: { skin: 0xf0c090, hair: 0xffd60a, top: 0xff70a6, legs: 0x495057 },
+  vin: { skin: 0xf0c090, hair: 0x6c757d, top: 0xe9ecef, legs: 0x6c757d, extra: (g) => g.fillStyle(0x80ffdb).fillRect(9, 11, 14, 3) },
+  kleiver: { skin: 0xd9a877, hair: 0x343a40, top: 0x8b5a2b, legs: 0x3b2a1a, extra: (g) => g.fillStyle(0x6c757d).fillRect(4, 14, 24, 6) },
+  damas: { skin: 0xd9a877, hair: 0xadb5bd, top: 0xd9a441, legs: 0x5c4326, extra: (g) => g.fillStyle(0xffd60a).fillTriangle(10, 4, 16, -4, 22, 4) },
+  precursors: {
+    skin: 0x80ffdb, hair: 0x80ffdb, top: 0x0f766e, legs: 0x0f766e,
+    extra: (g) => g.fillStyle(0x80ffdb, 0.35).fillCircle(16, 20, 18),
+  },
+};
+
+function drawPerson(g: Phaser.GameObjects.Graphics, look: PersonLook): void {
+  g.fillStyle(look.legs).fillRect(9, 30, 5, 10).fillRect(18, 30, 5, 10);
+  g.fillStyle(look.top).fillRoundedRect(6, 16, 20, 17, 5);
+  g.fillStyle(look.skin).fillCircle(16, 12, 8);
+  g.fillStyle(look.hair).fillTriangle(7, 9, 16, 1, 25, 9);
+  g.fillStyle(0x1a1a1a).fillCircle(13, 13, 1.4).fillCircle(19, 13, 1.4);
+  look.extra?.(g);
 }
 
 function drawHut(g: Phaser.GameObjects.Graphics, walls: number, roof: number): void {
@@ -479,6 +526,31 @@ export class BootScene extends Phaser.Scene {
       g.fillStyle(0xe85d04).fillCircle(26, 26, 3); // embers
       g.fillStyle(0xffba08).fillCircle(10, 26, 2);
     });
+
+    // ---- Pickups and the field ----
+
+    this.texture('chest', 34, 28, (g) => {
+      g.fillStyle(0x495057).fillRoundedRect(0, 6, 34, 22, 4); // Precursor crate
+      g.fillStyle(0xd9a441).fillRect(0, 12, 34, 4).fillRect(14, 6, 6, 22); // gold bands
+      g.fillStyle(0x80ffdb).fillCircle(17, 14, 4); // glow
+      g.fillStyle(0x6c757d).fillRoundedRect(2, 0, 30, 9, 3); // lid
+    });
+
+    this.texture('oracle', 40, 76, (g) => {
+      g.fillStyle(0x343a40).fillRect(4, 64, 32, 12); // base
+      g.fillStyle(0x495057).fillRoundedRect(8, 14, 24, 52, 6); // body
+      g.fillStyle(0x6c757d).fillEllipse(20, 14, 30, 24); // head
+      g.fillStyle(0x80ffdb).fillCircle(14, 14, 4).fillCircle(26, 14, 4); // glowing eyes
+      g.fillStyle(0x80ffdb, 0.3).fillCircle(20, 14, 18);
+    });
+
+    this.texture('jetBoardRide', 44, 12, (g) => {
+      g.fillStyle(0x3a86ff).fillRoundedRect(0, 2, 44, 8, 4);
+      g.fillStyle(0xffd60a).fillRect(6, 4, 32, 3);
+      g.fillStyle(0x80ffdb, 0.7).fillEllipse(22, 11, 30, 4); // hover glow
+    });
+
+    for (const [id, look] of Object.entries(NPC_LOOKS)) this.texture(`npc-${id}`, 32, 40, (g) => drawPerson(g, look));
 
     for (const map of Object.values(MAPS)) {
       map.zones.forEach((zone, i) => {

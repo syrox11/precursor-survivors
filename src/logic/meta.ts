@@ -99,6 +99,8 @@ export interface RunSummary {
   kills: number;
   level: number;
   bossesDefeated: number;
+  /** Batteries handed out during the run, e.g. by characters. */
+  bonusBatteries: number;
 }
 
 export interface ChallengeDef {
@@ -128,10 +130,10 @@ export const CHALLENGES: Record<ChallengeId, ChallengeDef> = {
 export const POWER_CELL_BONUS = 25;
 export const BOSS_BONUS = 5;
 
-/** 1 battery per 30 seconds survived, 1 per 100 Lurkers, 5 per boss, plus a bonus for the Power Cell. */
+/** 1 battery per 30 seconds survived, 1 per 100 Lurkers, 5 per boss, gifts, plus a bonus for the Power Cell. */
 export function batteriesForRun(run: RunSummary): number {
   return Math.floor(run.time / 30) + Math.floor(run.kills / 100) + BOSS_BONUS * run.bossesDefeated
-    + (run.won ? POWER_CELL_BONUS : 0);
+    + run.bonusBatteries + (run.won ? POWER_CELL_BONUS : 0);
 }
 
 /** Additive bonuses applied on top of item stats. 0.1 = +10%. */
