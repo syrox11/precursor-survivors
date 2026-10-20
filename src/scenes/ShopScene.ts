@@ -62,13 +62,13 @@ export class ShopScene extends Phaser.Scene {
         ];
       case 'weapons':
         return (Object.keys(WEAPON_UNLOCK_COST) as WeaponId[]).filter((id) => !SHOP_WEAPONS.includes(id)).map((id) => ({
-          name: ITEMS[id].name, description: `Start a run with it. ${ITEMS[id].describe(1)}`,
+          name: ITEMS[id].name, description: `Start a run with it. ${ITEMS[id].summary}`,
           status: s.weapons.includes(id) ? 'Owned' : undefined, purchase: { kind: 'weapon', id },
         }));
       case 'morphGun':
         return SHOP_WEAPONS.map((id) => ({
           name: ITEMS[id].name,
-          description: `${COLOR_NAMES[GUN_COLORS[id]!]}. ${ITEMS[id].describe(1)}`,
+          description: `${COLOR_NAMES[GUN_COLORS[id]!]}. ${ITEMS[id].summary}`,
           status: s.weapons.includes(id) ? 'Owned' : undefined, purchase: { kind: 'weapon', id },
         }));
       case 'companions':

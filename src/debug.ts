@@ -16,7 +16,7 @@ export interface DebugSnapshot {
   bossesDefeated: number;
   orbs: Point[];
   /** Chests, oracles and characters waiting on the map. */
-  field: { kind: 'chest' | 'oracle' | 'npc'; x: number; y: number }[];
+  field: { kind: 'chest' | 'pickup' | 'oracle' | 'npc'; x: number; y: number }[];
   loadout: Loadout;
   eco: { light: number; dark: number; active: 'light' | 'dark' | null };
   state: 'playing' | 'levelUp' | 'over';

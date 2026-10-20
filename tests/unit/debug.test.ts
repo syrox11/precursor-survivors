@@ -19,7 +19,7 @@ describe('debugLoadout', () => {
   });
 
   it('skips unknown items and invalid levels', () => {
-    expect(debugLoadout('?items=bfg:3,arc:9,blaster:0,vulcan:x,peacemaker:2')).toEqual({ peacemaker: 2 });
+    expect(debugLoadout('?items=bfg:3,arc:9,blaster:0,vulcan:x,peacemaker:2')).toEqual({ arc: 9, peacemaker: 2 });
   });
 });
 

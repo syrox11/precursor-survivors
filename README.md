@@ -12,8 +12,9 @@ A browser game in the style of *Vampire Survivors*, set in the world of *Jak and
 
 - **Move:** WASD or arrow keys. Attacks are automatic.
 - **Light Jak / Dark Jak:** `E` / `Q` when that eco meter is full, then `1`-`4` for its powers.
+- **Pause:** `ESC` or `P`. The pause screen shows your build and stats; hover any weapon or passive for its exact numbers.
 - Defeated Lurkers drop **Precursor orbs**. Collect them to level up.
-- On every level up, pick one of three upgrades. You can carry **5 weapons and 4 passives**, each up to level 5.
+- On every level up, pick one of three upgrades. You can carry **5 weapons and 4 passives**, and there is **no level cap**: damage keeps growing, while cooldowns, speed and counts approach sensible limits so the game stays playable. Cards show exactly what changes, e.g. *Damage 13 → 16, Every 0.46s → 0.42s*.
 
 **Weapons**
 
@@ -55,7 +56,7 @@ Enemies get tougher and more numerous over time, and from minute 2 a horde surro
 
 ### Maps
 
-Each map follows one game. Every 2:30 the zone changes (ground, scenery and enemies), and 30 seconds before each change the zone's boss shows up. A boss you don't kill follows you into the next zone. To win, survive the 10 minutes **and** defeat the final boss.
+Each map follows one game. Every 2:30 the zone changes (ground, scenery and enemies), and 30 seconds before each change the zone's boss shows up. A boss you don't kill follows you into the next zone. To win, survive the 10 minutes **and** defeat the final boss. That earns the Power Cell, and then the run goes on in **endless mode**: enemies keep getting tougher and a boss from the map returns every 90 seconds, until Jak falls.
 
 **The Precursor Legacy (Jak 1)**
 
@@ -98,7 +99,7 @@ Each map follows one game. Every 2:30 the zone changes (ground, scenery and enem
 
 Their gifts fit the character: Keira upgrades a weapon, Samos heals you and raises your max health, Torn, Sig, Ashelin and Damas fight next to you for 30 seconds, Vin raises an eco shield, the Yellow Sage wipes the screen with yellow eco, the Gambler hands out a random gift...
 
-Chests can also hold **light** or **dark eco** (fills that meter), **red eco** (more damage for a while), **yellow eco**, which turns into a turret that keeps shooting for 15 seconds, or a **weapon mod**.
+Enemies sometimes drop these pickups too (everything except weapon mods). Chests can also hold **light** or **dark eco** (fills that meter), **red eco** (more damage for a while), **yellow eco**, which turns into a turret that keeps shooting for 15 seconds, or a **weapon mod**.
 
 Every hit shows its damage, and wounded enemies show a health bar.
 
@@ -144,6 +145,7 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [x] **Phase 5a:** chests, oracles, saga characters, damage numbers and health bars
 - [x] **Phase 5b:** Light Jak and Dark Jak: eco meters and activated powers; red and yellow eco
 - [x] **Phase 5c:** the rest of the Jak 3 Morph Gun (7 weapons, unlocked in the shop), colour synergies, weapon mods from chests, 5 weapon slots
+- [x] **Phase 5d:** pause screen with item details, numbers-first descriptions, no level cap, endless mode after the final boss, enemy pickup drops
 - [ ] **Phase 6:** E2E tests with Playwright on the canvas, performance checks
 
 ## Tech

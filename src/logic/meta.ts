@@ -20,19 +20,19 @@ export interface CompanionDef {
 export const COMPANIONS: Record<CompanionId, CompanionDef> = {
   daxter: {
     id: 'daxter', name: 'Daxter', texture: 'daxter', cost: 0,
-    description: '+10% speed, attracts orbs from further away',
+    description: '+10% speed, +25% orb pickup range',
   },
   daxterPants: {
     id: 'daxterPants', name: 'Daxter (with pants)', texture: 'daxterPants', cost: 60,
-    description: 'Sprays bug spray at nearby Lurkers',
+    description: 'Sprays the 5 nearest enemies every 1.1s; damage grows with your level',
   },
   pecker: {
     id: 'pecker', name: 'Pecker', texture: 'pecker', cost: 50,
-    description: '+15% XP and warns you before each horde',
+    description: '+15% XP, warns you 3s before each horde',
   },
   clank: {
     id: 'clank', name: 'Clank', texture: 'clank', cost: 100,
-    description: 'Shield that blocks all damage for 1.5s, recharges every 12s',
+    description: 'When you get hit: 1.5s of no damage, then 12s to recharge',
   },
 };
 
@@ -128,7 +128,7 @@ export const CHALLENGES: Record<ChallengeId, ChallengeDef> = {
     reward: 50, unlocksSkin: 'darkJak', isMet: (run) => run.won,
   },
   exterminator: {
-    id: 'exterminator', name: 'Exterminator', description: 'Defeat 1000 Lurkers in one run',
+    id: 'exterminator', name: 'Exterminator', description: 'Defeat 1000 enemies in one run',
     reward: 30, unlocksSkin: 'lightJak', isMet: (run) => run.kills >= 1000,
   },
   veteran: {

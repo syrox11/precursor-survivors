@@ -33,7 +33,7 @@ export class GameOverScene extends Phaser.Scene {
       `Time survived: ${formatTime(result.time)}${reward.newRecord ? '  (new record!)' : ''}`,
       `Best time: ${formatTime(reward.save.bestTime)}`,
       `Level reached: ${result.level}`,
-      `Lurkers defeated: ${result.kills}`,
+      `Enemies defeated: ${result.kills}`,
       `Precursor orbs: ${result.orbs}`,
     ];
     this.add.text(cx, 225, lines.join('\n'), {

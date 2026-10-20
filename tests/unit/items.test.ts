@@ -24,13 +24,14 @@ describe('availableItems', () => {
     expect(offers.filter((id) => ITEMS[id].kind === 'passive').sort()).toEqual(['armor', 'blueEco', 'greenEco', 'redEco']);
   });
 
-  it('drops owned items once they reach max level', () => {
-    expect(availableItems({ spin: 5 })).not.toContain('spin');
+  it('has no level cap: owned items keep being offered', () => {
+    expect(availableItems({ spin: 5 })).toContain('spin');
+    expect(availableItems({ spin: 40 })).toContain('spin');
   });
 
-  it('is empty when every slot is full and maxed', () => {
-    const maxed = Object.fromEntries(Object.keys({ ...fullWeapons, ...fullPassives }).map((id) => [id, 5])) as Loadout;
-    expect(availableItems(maxed)).toEqual([]);
+  it('offers only what you own once every slot is full', () => {
+    const full: Loadout = { ...fullWeapons, ...fullPassives };
+    expect(availableItems(full).sort()).toEqual(Object.keys(full).sort());
   });
 });
 
@@ -45,9 +46,9 @@ describe('rollChoices', () => {
     expect(rollChoices(STARTING_LOADOUT, createRng(9))).toEqual(rollChoices(STARTING_LOADOUT, createRng(9)));
   });
 
-  it('offers fewer than 3 when fewer are left', () => {
-    const maxedButOne: Loadout = { spin: 5, scatter: 5, blaster: 5, vulcan: 4, arc: 5, redEco: 5, blueEco: 5, greenEco: 5, armor: 5 };
-    expect(rollChoices(maxedButOne, createRng(1))).toEqual(['vulcan']);
+  it('offers fewer than 3 when fewer are available', () => {
+    const allButArc = (Object.keys(ITEMS) as ItemId[]).filter((id) => id !== 'arc' && id !== 'spin');
+    expect(rollChoices({ spin: 1 }, createRng(1), allButArc).sort()).toEqual(['arc', 'spin']);
   });
 });
 
@@ -62,8 +63,11 @@ describe('applyItem', () => {
     expect(applyItem({ spin: 2 }, 'spin').spin).toBe(3);
   });
 
-  it('ignores items that are not available', () => {
-    expect(applyItem({ spin: 5 }, 'spin')).toEqual({ spin: 5 });
+  it('keeps levelling past 5', () => {
+    expect(applyItem({ spin: 5 }, 'spin')).toEqual({ spin: 6 });
+  });
+
+  it('ignores new items once their slots are full', () => {
     expect(applyItem(fullWeapons, 'peacemaker')).toEqual(fullWeapons);
   });
 
@@ -75,18 +79,13 @@ describe('applyItem', () => {
   });
 });
 
-describe('a full run', () => {
-  it('can level until every slot is full and maxed, then offers nothing', () => {
+describe('a long run', () => {
+  it('fills every slot and still has three offers after 100 level-ups', () => {
     const rng = createRng(123);
     let loadout: Loadout = STARTING_LOADOUT;
-    let picks = 0;
-    for (let choices = rollChoices(loadout, rng); choices.length > 0; choices = rollChoices(loadout, rng)) {
-      loadout = applyItem(loadout, choices[0]);
-      picks++;
-    }
+    for (let i = 0; i < 100; i++) loadout = applyItem(loadout, rollChoices(loadout, rng)[0]);
     expect(ownedOfKind(loadout, 'weapon')).toHaveLength(SLOTS.weapon);
     expect(ownedOfKind(loadout, 'passive')).toHaveLength(SLOTS.passive);
-    // 9 items x 5 levels, minus the level of Spin Kick you start with
-    expect(picks).toBe(44);
+    expect(rollChoices(loadout, rng)).toHaveLength(3);
   });
 });

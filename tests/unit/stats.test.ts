@@ -21,7 +21,14 @@ describe('computeStats', () => {
     expect(stats.maxHp).toBe(BASE_HP + 60);
     expect(stats.armor).toBeCloseTo(0.3);
     expect(stats.areaMultiplier).toBeCloseTo(1.2);
-    expect(stats.cooldownMultiplier).toBeCloseTo(0.7);
+    expect(stats.cooldownMultiplier).toBeCloseTo(Math.pow(0.94, 5));
+  });
+
+  it('stays sane at very high passive levels', () => {
+    const stats = computeStats({ blueEco: 50, tuneUp: 50, armor: 50 });
+    expect(stats.moveSpeed).toBeLessThan(BASE_SPEED * 1.8);
+    expect(stats.cooldownMultiplier).toBeGreaterThan(0);
+    expect(stats.armor).toBe(0.6);
   });
 
   it('ignores weapons', () => {
@@ -33,7 +40,7 @@ describe('weaponStats', () => {
   const weapons = Object.keys(ITEMS).filter((id) => ITEMS[id as WeaponId].kind === 'weapon') as WeaponId[];
 
   it.each(weapons)('%s gets stronger and never slower with each level', (id) => {
-    for (let level = 1; level < 5; level++) {
+    for (let level = 1; level < 30; level++) {
       const now = weaponStats(id, level);
       const next = weaponStats(id, level + 1);
       expect(next.damage).toBeGreaterThan(now.damage);
@@ -41,18 +48,22 @@ describe('weaponStats', () => {
     }
   });
 
-  it.each(weapons)('%s keeps a positive cooldown at max level', (id) => {
-    expect(weaponStats(id, 5).cooldown).toBeGreaterThan(0);
+  it.each(weapons)('%s keeps a positive cooldown even at level 100', (id) => {
+    expect(weaponStats(id, 100).cooldown).toBeGreaterThan(0);
   });
 
-  it('clamps levels outside 1-5', () => {
-    expect(weaponStats('arc', 9)).toEqual(weaponStats('arc', 5));
+  it('has no level cap, and treats levels below 1 as 1', () => {
+    expect(weaponStats('arc', 9).damage).toBeGreaterThan(weaponStats('arc', 5).damage);
     expect(weaponStats('arc', 0)).toEqual(weaponStats('arc', 1));
   });
 
-  it('only gives the Blaster piercing from level 4', () => {
-    expect(weaponStats('blaster', 3).pierce).toBe(0);
-    expect(weaponStats('blaster', 4).pierce).toBeGreaterThan(0);
+  it('caps counts and sizes so very high levels stay playable', () => {
+    expect(weaponStats('scatter', 100).pellets).toBe(12);
+    expect(weaponStats('spin', 100).radius).toBe(160);
+  });
+
+  it('gives the Blaster one more pierce every two levels', () => {
+    expect([1, 2, 3, 4, 5].map((l) => weaponStats('blaster', l).pierce)).toEqual([0, 0, 1, 1, 2]);
   });
 });
 

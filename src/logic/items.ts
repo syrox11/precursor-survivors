@@ -13,41 +13,42 @@ export interface ItemDef {
   kind: ItemKind;
   name: string;
   color: number;
+  /** Levels have no cap; stats are shaped so they stay sane however high they go. */
   maxLevel: number;
-  /** What the item does when taken at `level` (1 = new). */
-  describe(level: number): string;
+  /** One sentence on what the item is for. The numbers come from `describeUpgrade` / `describeItem`. */
+  summary: string;
 }
 
-const weapon = (id: WeaponId, name: string, color: number, first: string, next: string): ItemDef => ({
-  id, kind: 'weapon', name, color, maxLevel: 5, describe: (level) => (level === 1 ? first : next),
+const weapon = (id: WeaponId, name: string, color: number, summary: string): ItemDef => ({
+  id, kind: 'weapon', name, color, maxLevel: Infinity, summary,
 });
 
-const passive = (id: PassiveId, name: string, color: number, text: string): ItemDef => ({
-  id, kind: 'passive', name, color, maxLevel: 5, describe: () => text,
+const passive = (id: PassiveId, name: string, color: number, summary: string): ItemDef => ({
+  id, kind: 'passive', name, color, maxLevel: Infinity, summary,
 });
 
 export const ITEMS: Record<ItemId, ItemDef> = {
-  spin: weapon('spin', 'Spin Kick', 0x7fd8ff, 'Spin attack around Jak', 'Bigger, faster and stronger spin'),
-  yellowEco: weapon('yellowEco', 'Yellow Eco', 0xffd60a, 'Eco blasts at the closest Lurkers', 'One more blast, more damage'),
-  scatter: weapon('scatter', 'Scatter Gun', 0xe5383b, 'Short-range shotgun cone where you face', 'More pellets, more damage'),
-  blaster: weapon('blaster', 'Blaster', 0xffa62b, 'Rapid shots at the closest Lurker', 'Faster fire; pierces from level 4'),
-  vulcan: weapon('vulcan', 'Vulcan Fury', 0x4cc9f0, 'Bullet bursts where you face', 'Longer bursts, more damage'),
-  peacemaker: weapon('peacemaker', 'Peacemaker', 0x9d4edd, 'Slow orb that explodes in a big area', 'Bigger blast, more damage'),
-  arc: weapon('arc', 'Arc Wielder', 0x90e0ef, 'Lightning that chains between Lurkers', 'Chains to one more Lurker'),
-  waveConcussor: weapon('waveConcussor', 'Wave Concussor', 0xff6b6b, 'A shockwave across the screen that pushes back and stuns', 'Wider wave, longer stun'),
-  plasmiteRpg: weapon('plasmiteRpg', 'Plasmite RPG', 0xc1121f, 'Rockets at the thickest crowd that leave burning plasma', 'More damage, longer burn'),
-  beamReflexor: weapon('beamReflexor', 'Beam Reflexor', 0xffd166, 'Shots that bounce from Lurker to Lurker', 'One more bounce'),
-  gyroBurster: weapon('gyroBurster', 'Gyro Burster', 0xf4a261, 'A spinning decoy that sprays shots and draws Lurkers in', 'Lasts longer, fires faster'),
-  needleLazer: weapon('needleLazer', 'Needle Lazer', 0x48cae4, 'Swarms of homing needles', 'More needles, more damage'),
-  massInverter: weapon('massInverter', 'Mass Inverter', 0x7b2cbf, 'Lifts Lurkers off the ground, then slams them down', 'Bigger field, harder slam'),
-  superNova: weapon('superNova', 'Super Nova', 0x3c096c, 'A slow-charging nova that blasts everything around Jak', 'Bigger, stronger, more often'),
+  spin: weapon('spin', 'Spin Kick', 0x7fd8ff, 'Jak spins and kicks every enemy around him.'),
+  yellowEco: weapon('yellowEco', 'Yellow Eco', 0xffd60a, 'Eco blasts at the nearest enemies.'),
+  scatter: weapon('scatter', 'Scatter Gun', 0xe5383b, 'A short-range shotgun cone where Jak faces.'),
+  blaster: weapon('blaster', 'Blaster', 0xffa62b, 'Fast single shots at the nearest enemy.'),
+  vulcan: weapon('vulcan', 'Vulcan Fury', 0x4cc9f0, 'Bursts of bullets where Jak faces.'),
+  peacemaker: weapon('peacemaker', 'Peacemaker', 0x9d4edd, 'A slow orb that explodes in a big area.'),
+  arc: weapon('arc', 'Arc Wielder', 0x90e0ef, 'Lightning that jumps from enemy to enemy.'),
+  waveConcussor: weapon('waveConcussor', 'Wave Concussor', 0xff6b6b, 'A shockwave across the screen that pushes enemies back and stuns them.'),
+  plasmiteRpg: weapon('plasmiteRpg', 'Plasmite RPG', 0xc1121f, 'Rockets at the thickest crowd that leave burning plasma on the ground.'),
+  beamReflexor: weapon('beamReflexor', 'Beam Reflexor', 0xffd166, 'Shots that bounce from enemy to enemy.'),
+  gyroBurster: weapon('gyroBurster', 'Gyro Burster', 0xf4a261, 'A spinning decoy that sprays shots and pulls nearby enemies in.'),
+  needleLazer: weapon('needleLazer', 'Needle Lazer', 0x48cae4, 'Swarms of homing needles that chase enemies.'),
+  massInverter: weapon('massInverter', 'Mass Inverter', 0x7b2cbf, 'Lifts enemies off the ground, then slams them for a share of their health.'),
+  superNova: weapon('superNova', 'Super Nova', 0x3c096c, 'Charges, then blasts everything around Jak.'),
 
-  redEco: passive('redEco', 'Red Eco', 0xd62828, '+15% damage'),
-  blueEco: passive('blueEco', 'Blue Eco', 0x3a86ff, '+8% speed, attracts orbs from further away'),
-  greenEco: passive('greenEco', 'Green Eco', 0x38b000, '+20 max health, regenerate health'),
-  armor: passive('armor', 'Precursor Armor', 0xc9a227, '-6% damage taken'),
-  amplifier: passive('amplifier', 'Eco Amplifier', 0x80ffdb, '+10% attack area'),
-  tuneUp: passive('tuneUp', "Keira's Tune-up", 0xff70a6, '-6% weapon cooldowns'),
+  redEco: passive('redEco', 'Red Eco', 0xd62828, 'More damage for every weapon.'),
+  blueEco: passive('blueEco', 'Blue Eco', 0x3a86ff, 'Faster movement and a bigger orb pickup range.'),
+  greenEco: passive('greenEco', 'Green Eco', 0x38b000, 'More max health and health regeneration.'),
+  armor: passive('armor', 'Precursor Armor', 0xc9a227, 'Less damage taken.'),
+  amplifier: passive('amplifier', 'Eco Amplifier', 0x80ffdb, 'Bigger attack areas.'),
+  tuneUp: passive('tuneUp', "Keira's Tune-up", 0xff70a6, 'Shorter cooldowns for every weapon.'),
 };
 
 /** Item -> level. Missing means not owned. Key order is pick order, which the HUD shows. */

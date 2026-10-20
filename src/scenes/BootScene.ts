@@ -563,6 +563,24 @@ export class BootScene extends Phaser.Scene {
       g.fillStyle(0xffffff).fillCircle(15, 10, 2);
     });
 
+    // Pickups dropped by enemies, one look per content
+    const orbPickup = (key: string, outer: number, inner: number, size = 22) => this.texture(key, size, size, (g) => {
+      g.fillStyle(outer, 0.35).fillCircle(size / 2, size / 2, size / 2);
+      g.fillStyle(outer).fillCircle(size / 2, size / 2, size / 3);
+      g.fillStyle(inner).fillCircle(size / 2 - 2, size / 2 - 2, size / 8);
+    });
+    orbPickup('pickup-health', 0x38b000, 0xd8f3dc);
+    orbPickup('pickup-magnet', 0x3a86ff, 0xcaf0f8, 30); // the big blue eco orb
+    orbPickup('pickup-lightEco', 0x90e0ef, 0xffffff);
+    orbPickup('pickup-darkEco', 0x7b2cbf, 0xe0aaff);
+    orbPickup('pickup-redEco', 0xe5383b, 0xffccd5);
+    orbPickup('pickup-yellowEco', 0xffd60a, 0xffffff);
+    orbPickup('pickup-weaponMod', 0xffb703, 0xffffff);
+    this.texture('pickup-jetBoard', 34, 14, (g) => {
+      g.fillStyle(0x3a86ff).fillRoundedRect(0, 3, 34, 8, 4);
+      g.fillStyle(0xffd60a).fillRect(5, 5, 24, 3);
+    });
+
     this.texture('jetBoardRide', 44, 12, (g) => {
       g.fillStyle(0x3a86ff).fillRoundedRect(0, 2, 44, 8, 4);
       g.fillStyle(0xffd60a).fillRect(6, 4, 32, 3);

@@ -34,7 +34,7 @@ export class TitleScene extends Phaser.Scene {
 
     this.add.text(cx, 445, [
       'SPACE to play   ·   Move: WASD / arrow keys   ·   Attacks are automatic',
-      'E / Q: Light / Dark Jak when the meter is full   ·   1 - 4: their powers',
+      'E / Q: Light / Dark Jak when the meter is full   ·   1 - 4: their powers   ·   ESC / P: pause',
     ].join('\n'), {
       fontFamily: FONT, fontSize: '15px', color: COLORS.text, align: 'center', lineSpacing: 4,
     }).setOrigin(0.5).setAlpha(0.8);

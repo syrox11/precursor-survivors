@@ -4,18 +4,20 @@ import { FONT, PLAYER_RADIUS, WORLD_SIZE } from '../config';
 import type { MapDef } from '../logic/maps';
 import { NPCS, pickNpcs, type NpcDef } from '../logic/npcs';
 import {
-  chestDue, MAX_CHESTS, NPC_AT, NPC_STAYS, ORACLE_AT, ORACLE_STAYS, rollChest, zoneEventDue, type ChestContent,
+  chestDue, DROP_STAYS, MAX_CHESTS, NPC_AT, NPC_STAYS, ORACLE_AT, ORACLE_STAYS, rollChest, zoneEventDue, type ChestContent,
 } from '../logic/pickups';
 import type { Rng } from '../logic/rng';
 import type { IndicatorTarget } from '../ui/indicators';
 
 type FieldObject =
   | { kind: 'chest'; sprite: Phaser.GameObjects.Image }
+  | { kind: 'pickup'; sprite: Phaser.GameObjects.Image; content: ChestContent; timeLeft: number }
   | { kind: 'oracle'; sprite: Phaser.GameObjects.Image; timeLeft: number }
   | { kind: 'npc'; sprite: Phaser.GameObjects.Image; timeLeft: number; npc: NpcDef; label: Phaser.GameObjects.Text };
 
 export interface FieldHandlers {
-  onChest(content: ChestContent, at: Point): void;
+  /** A chest was opened or a dropped pickup collected. */
+  onPickup(content: ChestContent, at: Point): void;
   onOracle(at: Point): void;
   onNpc(npc: NpcDef, at: Point): void;
 }
@@ -53,7 +55,8 @@ export class Field {
       if (Math.hypot(sprite.x - player.x, sprite.y - player.y) < PICKUP_RADIUS + PLAYER_RADIUS) {
         this.remove(i);
         const at = { x: sprite.x, y: sprite.y };
-        if (object.kind === 'chest') this.handlers.onChest(rollChest(this.rng), at);
+        if (object.kind === 'chest') this.handlers.onPickup(rollChest(this.rng), at);
+        else if (object.kind === 'pickup') this.handlers.onPickup(object.content, at);
         else if (object.kind === 'oracle') this.handlers.onOracle(at);
         else this.handlers.onNpc(object.npc, at);
         continue;
@@ -71,10 +74,17 @@ export class Field {
     this.objects.push({ kind: 'chest', sprite });
   }
 
+  /** Something an enemy dropped: shows what it is and waits a while before vanishing. */
+  dropPickup(content: ChestContent, at: Point): void {
+    const sprite = this.scene.add.image(at.x, at.y, `pickup-${content}`).setDepth(DEPTH);
+    this.scene.tweens.add({ targets: sprite, scale: 1.15, duration: 500, yoyo: true, repeat: -1 });
+    this.objects.push({ kind: 'pickup', sprite, content, timeLeft: DROP_STAYS });
+  }
+
   /** Off-screen characters and oracles, for the edge arrows. */
   targets(): IndicatorTarget[] {
     return this.objects
-      .filter((o) => o.kind !== 'chest')
+      .filter((o) => o.kind === 'npc' || o.kind === 'oracle')
       .map((o) => ({ x: o.sprite.x, y: o.sprite.y, color: o.kind === 'npc' ? 0xffb703 : 0x80ffdb }));
   }
 

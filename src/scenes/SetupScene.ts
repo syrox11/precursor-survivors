@@ -52,7 +52,7 @@ export class SetupScene extends Phaser.Scene {
     add(this.add.image(155, 128, COMPANIONS[this.setup.companion].texture).setScale(2.4));
 
     const weapon = ITEMS[this.setup.weapon];
-    this.selector(add, 105, 'Starting weapon', weapon.name, weapon.describe(1), this.save.weapons, this.setup.weapon, (id) => {
+    this.selector(add, 105, 'Starting weapon', weapon.name, weapon.summary, this.save.weapons, this.setup.weapon, (id) => {
       this.setup.weapon = id;
       // You can't ban the weapon you start with
       this.setup.banned = this.setup.banned.filter((b) => b !== id);

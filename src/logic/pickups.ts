@@ -57,3 +57,15 @@ export function zoneEventDue(offset: number, zones: number, previous: number, el
   }
   return undefined;
 }
+
+/** Chance per regular kill to drop a pickup on the ground. Weapon mods only come from chests. */
+export const ENEMY_DROP_CHANCE = 0.004;
+/** Seconds a dropped pickup waits on the ground. */
+export const DROP_STAYS = 30;
+
+export function rollEnemyDrop(rng: Rng): ChestContent | null {
+  if (rng() >= ENEMY_DROP_CHANCE) return null;
+  let content = rollChest(rng);
+  while (content === 'weaponMod') content = rollChest(rng);
+  return content;
+}

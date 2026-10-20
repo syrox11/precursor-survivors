@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ZONE_DURATION } from '../../src/logic/maps';
 import {
-  CHEST_EVERY, CHEST_WEIGHTS, chestDue, crossed, FIRST_CHEST, NPC_AT, rollChest, zoneEventDue, type ChestContent,
+  CHEST_EVERY, CHEST_WEIGHTS, chestDue, crossed, ENEMY_DROP_CHANCE, FIRST_CHEST, NPC_AT, rollChest, rollEnemyDrop, zoneEventDue,
+  type ChestContent,
 } from '../../src/logic/pickups';
 import { createRng } from '../../src/logic/rng';
 
@@ -45,5 +46,19 @@ describe('zoneEventDue', () => {
   it('ignores zones past the last one', () => {
     const fifth = 4 * ZONE_DURATION + NPC_AT;
     expect(zoneEventDue(NPC_AT, 4, fifth - 0.01, fifth + 0.01)).toBeUndefined();
+  });
+});
+
+describe('rollEnemyDrop', () => {
+  it('drops rarely and never a weapon mod', () => {
+    const rng = createRng(8);
+    let drops = 0;
+    for (let i = 0; i < 50000; i++) {
+      const drop = rollEnemyDrop(rng);
+      if (!drop) continue;
+      drops++;
+      expect(drop).not.toBe('weaponMod');
+    }
+    expect(drops / 50000).toBeCloseTo(ENEMY_DROP_CHANCE, 2);
   });
 });

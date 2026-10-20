@@ -6,6 +6,7 @@ import { GameScene } from './scenes/GameScene';
 import { SetupScene } from './scenes/SetupScene';
 import { ShopScene } from './scenes/ShopScene';
 import { LevelUpScene } from './scenes/LevelUpScene';
+import { PauseScene } from './scenes/PauseScene';
 import { TitleScene } from './scenes/TitleScene';
 
 new Phaser.Game({
@@ -15,5 +16,5 @@ new Phaser.Game({
   height: GAME_HEIGHT,
   backgroundColor: '#0d1b1e',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene, TitleScene, SetupScene, ShopScene, GameScene, LevelUpScene, GameOverScene],
+  scene: [BootScene, TitleScene, SetupScene, ShopScene, GameScene, LevelUpScene, PauseScene, GameOverScene],
 });

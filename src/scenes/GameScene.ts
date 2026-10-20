@@ -32,12 +32,15 @@ import { describeGift, gambleGift, type Gift, type NpcDef } from '../logic/npcs'
 import {
   activeSynergies, COLOR_HEX, describeMod, lockedWeapons, rollWeaponMod, weaponModifiers, type WeaponMod,
 } from '../logic/arsenal';
-import { HEALTH_PICKUP, JET_BOARD, RED_ECO, YELLOW_ECO_TURRET_SECONDS, type ChestContent } from '../logic/pickups';
+import {
+  HEALTH_PICKUP, JET_BOARD, RED_ECO, rollEnemyDrop, YELLOW_ECO_TURRET_SECONDS, type ChestContent,
+} from '../logic/pickups';
 import { DamageNumbers } from '../ui/damageNumbers';
 import { Indicators } from '../ui/indicators';
 import { Field } from '../world/field';
 import type { RunResult } from './GameOverScene';
 import type { LevelUpData } from './LevelUpScene';
+import type { PauseData } from './PauseScene';
 
 interface Orb {
   sprite: Phaser.GameObjects.Image;
@@ -64,6 +67,7 @@ const KNOCKBACK_DECAY = 8;
 const SPAWN_DISTANCE = Math.hypot(GAME_WIDTH, GAME_HEIGHT) / 2 + 40;
 const BOSS_SPAWN_DISTANCE = 380;
 const BOSS_AIM_BIAS = 250;
+const ENDLESS_BOSS_EVERY = 90;
 const CHARGE_EVERY = 3;
 const CHARGE_TIME = 0.45;
 const CHARGE_SPEED = 3.2;
@@ -72,7 +76,7 @@ const DEPTH = { decor: 1, orb: 2, enemy: 3, player: 4, companion: 5, fx: 6, hud:
 
 export class GameScene extends Phaser.Scene {
   private rng!: Rng;
-  private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'Q' | 'E' | 'ONE' | 'TWO' | 'THREE' | 'FOUR', Phaser.Input.Keyboard.Key>;
+  private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'Q' | 'E' | 'ONE' | 'TWO' | 'THREE' | 'FOUR' | 'ESC' | 'P', Phaser.Input.Keyboard.Key>;
 
   private setup!: RunSetup;
   private bonuses: Bonuses = NO_BONUSES;
@@ -115,6 +119,9 @@ export class GameScene extends Phaser.Scene {
   private spawnTimer = 0;
   private ended = false;
   private godMode = false;
+  /** Power Cell earned; the run is now endless. */
+  private victory = false;
+  private nextEndlessBossAt = 0;
 
   private field!: Field;
   private allies!: Allies;
@@ -207,7 +214,7 @@ export class GameScene extends Phaser.Scene {
     this.events.on('resume', () => {
       this.abilityKeysBlockedUntil = this.elapsed + 0.25;
     });
-    this.keys = this.input.keyboard!.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,Q,E,ONE,TWO,THREE,FOUR') as typeof this.keys;
+    this.keys = this.input.keyboard!.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,Q,E,ONE,TWO,THREE,FOUR,ESC,P') as typeof this.keys;
     this.combat = this.createCombat();
     this.companionContext = this.createCompanionContext();
     this.bossContext = this.createBossContext();
@@ -226,7 +233,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(DEPTH.fx)
       .setVisible(false);
     this.field = new Field(this, this.rng, this.map, {
-      onChest: (content, at) => this.openChest(content, at),
+      onPickup: (content, at) => this.openChest(content, at),
       onOracle: (at) => {
         this.giveLevels(1);
         this.floatText(at, '+1 LEVEL', '#80ffdb');
@@ -260,6 +267,9 @@ export class GameScene extends Phaser.Scene {
     if (this.ended) return;
     // Cap the step so a background tab doesn't teleport everything on return
     const dt = Math.min(deltaMs, 50) / 1000;
+    // Always read the pause keys so a press made while paused can't reopen the pause on resume
+    const pausePressed = Phaser.Input.Keyboard.JustDown(this.keys.ESC) || Phaser.Input.Keyboard.JustDown(this.keys.P);
+    if (pausePressed && this.elapsed >= this.abilityKeysBlockedUntil) return this.openPause();
     const previous = this.elapsed;
     this.elapsed += dt;
 
@@ -288,9 +298,10 @@ export class GameScene extends Phaser.Scene {
     this.drawHealthBars();
     this.indicators.update(this.cameras.main, this.field.targets());
 
-    if (this.hp <= 0) return this.endRun(false);
-    // The Power Cell needs both: the full run time and the final boss down
-    if (this.elapsed >= RUN_DURATION && this.finalBossDefeated) return this.endRun(true);
+    if (this.hp <= 0) return this.endRun(this.victory);
+    // The Power Cell needs both: the full run time and the final boss down. Then the run goes on until Jak falls.
+    if (!this.victory && this.elapsed >= RUN_DURATION && this.finalBossDefeated) this.claimPowerCell();
+    if (this.victory && this.elapsed >= this.nextEndlessBossAt) this.spawnEndlessBoss();
     if (this.pendingLevelUps > 0) this.openLevelUp(`LEVEL ${this.xp.level - this.pendingLevelUps + 1}!`);
     else if (this.pendingGifts.length > 0) this.openLevelUp(this.pendingGifts[0], true);
   }
@@ -334,6 +345,8 @@ export class GameScene extends Phaser.Scene {
     this.spawnTimer = 0;
     this.ended = false;
     this.godMode = false;
+    this.victory = false;
+    this.nextEndlessBossAt = 0;
     this.pendingGifts = [];
     this.bonusBatteries = 0;
     this.buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
@@ -496,6 +509,58 @@ export class GameScene extends Phaser.Scene {
     this.bossAI.set(enemy, createBossAI(def.id));
     this.cameras.main.shake(400, 0.006);
     this.showBanner(`BOSS: ${def.name.toUpperCase()}`, undefined, '#ff6b6b');
+  }
+
+  private openPause(): void {
+    const data: PauseData = {
+      headline: [
+        `${this.map.name}: ${this.map.zones[this.zone].name}`, `LV ${this.xp.level}`, formatTime(this.elapsed), `${this.kills} kills`,
+      ].join('  ·  '),
+      loadout: this.loadout,
+      stats: this.stats,
+      weaponMods: this.weaponMods,
+      synergies: activeSynergies(this.loadout),
+      effects: this.activeEffects(),
+      onResume: () => {
+        this.scene.stop('Pause');
+        this.scene.resume();
+      },
+      onQuit: () => {
+        this.scene.stop('Pause');
+        this.endRun(this.victory);
+      },
+    };
+    this.scene.pause();
+    this.scene.launch('Pause', data);
+  }
+
+  /** Timed effects running right now, with seconds left, for the pause screen. */
+  private activeEffects(): string[] {
+    const left = (until: number) => `${Math.ceil(until - this.elapsed)}s`;
+    const now = this.elapsed;
+    const effects: string[] = [];
+    if (now < this.buffs.damageUntil) effects.push(`+${Math.round((this.buffs.damage - 1) * 100)}% damage (${left(this.buffs.damageUntil)})`);
+    if (now < this.buffs.speedUntil) effects.push(`+${Math.round((this.buffs.speed - 1) * 100)}% speed (${left(this.buffs.speedUntil)})`);
+    if (now < this.buffs.invulnerableUntil) effects.push(`Invulnerable (${left(this.buffs.invulnerableUntil)})`);
+    if (now < this.frozenUntil) effects.push(`Enemies frozen (${left(this.frozenUntil)})`);
+    if (now < this.invisibleUntil) effects.push(`Invisible (${left(this.invisibleUntil)})`);
+    if (now < this.darkBlastUntil) effects.push(`Dark Blast (${left(this.darkBlastUntil)})`);
+    if (this.eco.active) effects.push(`${this.eco.active === 'light' ? 'Light' : 'Dark'} Jak: ${Math.round(this.eco[this.eco.active])} eco left`);
+    if (this.victory) effects.push('Endless mode: a boss returns every 90s');
+    return effects;
+  }
+
+  private claimPowerCell(): void {
+    this.victory = true;
+    this.nextEndlessBossAt = this.elapsed + ENDLESS_BOSS_EVERY;
+    this.cameras.main.flash(600, 255, 183, 3);
+    this.showBanner('POWER CELL ACQUIRED!', 'Endless mode: survive as long as you can', COLORS.accent);
+  }
+
+  /** In endless mode a boss from this map comes back every so often, tougher each time. */
+  private spawnEndlessBoss(): void {
+    this.nextEndlessBossAt = this.elapsed + ENDLESS_BOSS_EVERY;
+    this.spawnBoss(Math.floor(this.rng() * this.map.zones.length));
   }
 
   private defeatBoss(enemy: Enemy): void {
@@ -1054,6 +1119,8 @@ export class GameScene extends Phaser.Scene {
       this.orbs.push({ sprite: orb, value: enemy.def.xp, kind: 'xp', attracted: false });
       const wisp = rollWisp(this.rng);
       if (wisp) this.dropWisp(wisp, { x: x + 10, y: y - 6 });
+      const drop = rollEnemyDrop(this.rng);
+      if (drop) this.field.dropPickup(drop, { x: x - 10, y: y + 6 });
     }
   }
 
@@ -1142,7 +1209,7 @@ export class GameScene extends Phaser.Scene {
     const result: RunResult = {
       map: this.map.id,
       won,
-      time: Math.min(this.elapsed, RUN_DURATION),
+      time: this.elapsed,
       kills: this.kills,
       level: this.xp.level,
       bossesDefeated: this.bossesDefeated,
@@ -1224,8 +1291,10 @@ export class GameScene extends Phaser.Scene {
     this.hud.xpFill.scaleX = this.xp.xp / xpToNextLevel(this.xp.level);
     this.hud.level.setText(`LV ${this.xp.level}`);
     const overtime = this.elapsed >= RUN_DURATION && !this.finalBossDefeated;
-    this.hud.timer.setText(overtime ? 'DEFEAT THE BOSS!' : formatTime(RUN_DURATION - this.elapsed));
-    this.hud.counters.setText(`Lurkers: ${this.kills}\nOrbs: ${this.orbsCollected}`);
+    this.hud.timer.setText(this.victory
+      ? `ENDLESS +${formatTime(this.elapsed - RUN_DURATION)}`
+      : overtime ? 'DEFEAT THE BOSS!' : formatTime(RUN_DURATION - this.elapsed));
+    this.hud.counters.setText(`Kills: ${this.kills}\nOrbs: ${this.orbsCollected}`);
 
     const boss = this.enemies.find((e) => e.boss);
     this.hud.boss.setVisible(!!boss);
