@@ -1,9 +1,15 @@
 import * as Phaser from 'phaser';
+import { createCompanion, type Companion, type CompanionContext } from '../combat/companions';
 import { createWeapon, type Weapon } from '../combat/weapons';
 import type { Combat, Enemy, Point, ProjectileSpec } from '../combat/types';
-import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, PLAYER_RADIUS, RUN_DURATION, WORLD_SIZE } from '../config';
+import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage, PLAYER_RADIUS, RUN_DURATION, WORLD_SIZE } from '../config';
 import { debugEnabled, debugLoadout, exposeDebug } from '../debug';
-import { applyItem, ITEMS, ownedOfKind, rollChoices, STARTING_LOADOUT, type ItemId, type Loadout, type WeaponId } from '../logic/items';
+import {
+  applyItem, ITEMS, ownedOfKind, rollChoices, STARTING_LOADOUT, startingLoadout,
+  type ItemId, type Loadout, type WeaponId,
+} from '../logic/items';
+import { bonusesFor, COMPANIONS, NO_BONUSES, SKINS, type Bonuses } from '../logic/meta';
+import { loadSave, type RunSetup } from '../logic/save';
 import { formatTime } from '../logic/records';
 import { createRng, randomBetween, seedFromQuery, type Rng } from '../logic/rng';
 import { computeStats, type PlayerStats } from '../logic/stats';
@@ -34,14 +40,21 @@ const KNOCKBACK = 240;
 const KNOCKBACK_DECAY = 8;
 const SPAWN_DISTANCE = Math.hypot(GAME_WIDTH, GAME_HEIGHT) / 2 + 40;
 
-const DEPTH = { decor: 1, orb: 2, enemy: 3, player: 4, daxter: 5, fx: 6, hud: 100 };
+const DEPTH = { decor: 1, orb: 2, enemy: 3, player: 4, companion: 5, fx: 6, hud: 100 };
 
 export class GameScene extends Phaser.Scene {
   private rng!: Rng;
   private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', Phaser.Input.Keyboard.Key>;
 
+  private setup!: RunSetup;
+  private bonuses: Bonuses = NO_BONUSES;
+  private rerolls = 0;
+
   private player!: Phaser.GameObjects.Image;
-  private daxter!: Phaser.GameObjects.Image;
+  private companionSprite!: Phaser.GameObjects.Image;
+  private companion!: Companion;
+  private companionContext!: CompanionContext;
+  private speech?: Phaser.GameObjects.Text;
   private ground!: Phaser.GameObjects.TileSprite;
   private aim: Point = { x: 1, y: 0 };
 
@@ -80,10 +93,14 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     const seed = seedFromQuery(window.location.search) ?? Math.floor(Math.random() * 2 ** 32);
     this.rng = createRng(seed);
+    const save = loadSave(getStorage());
+    this.setup = save.setup;
+    this.bonuses = bonusesFor(save.powerUps, this.setup.companion);
+    this.rerolls = save.powerUps.reroll ?? 0;
     this.resetState();
     if (debugEnabled(window.location.search)) {
       this.loadout = { ...this.loadout, ...debugLoadout(window.location.search) };
-      this.stats = computeStats(this.loadout);
+      this.stats = computeStats(this.loadout, this.bonuses);
       this.hp = this.stats.maxHp;
     }
 
@@ -91,12 +108,14 @@ export class GameScene extends Phaser.Scene {
     this.scatterDecor();
 
     const center = WORLD_SIZE / 2;
-    this.player = this.add.image(center, center, 'jak').setDepth(DEPTH.player);
-    this.daxter = this.add.image(center - 14, center - 18, 'daxter').setDepth(DEPTH.daxter);
+    this.player = this.add.image(center, center, SKINS[this.setup.skin].texture).setDepth(DEPTH.player);
+    this.companionSprite = this.add.image(center - 14, center - 18, COMPANIONS[this.setup.companion].texture).setDepth(DEPTH.companion);
+    this.companion = createCompanion(this.setup.companion);
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE).startFollow(this.player, true, 0.15, 0.15);
 
     this.keys = this.input.keyboard!.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT') as typeof this.keys;
     this.combat = this.createCombat();
+    this.companionContext = this.createCompanionContext();
     this.syncWeapons();
     this.createHud();
 
@@ -127,6 +146,7 @@ export class GameScene extends Phaser.Scene {
     this.spawnEnemies(dt, previous);
     this.updateEnemies(dt);
     for (const [id, weapon] of this.weapons) weapon.update(dt, this.loadout[id] ?? 1, this.combat);
+    this.companion.update(dt, this.companionContext);
     this.updateProjectiles(dt);
     this.updateOrbs(dt);
 
@@ -144,8 +164,9 @@ export class GameScene extends Phaser.Scene {
     this.projectiles = [];
     this.weapons = new Map();
     this.aim = { x: 1, y: 0 };
-    this.loadout = STARTING_LOADOUT;
-    this.stats = computeStats(this.loadout);
+    this.speech = undefined;
+    this.loadout = startingLoadout(this.setup.weapon);
+    this.stats = computeStats(this.loadout, this.bonuses);
     this.xp = INITIAL_XP;
     this.hp = this.stats.maxHp;
     this.hurtFlash = 0;
@@ -172,6 +193,30 @@ export class GameScene extends Phaser.Scene {
       fire: (spec) => this.fireProjectile(spec),
       explode: (at, radius, damage, color) => this.explode(at, radius, damage, color),
     };
+  }
+
+  private createCompanionContext(): CompanionContext {
+    const scene = this;
+    // Spread copies getters as plain values, so the live ones are re-declared here
+    return Object.create(this.combat, {
+      elapsed: { get: () => scene.elapsed },
+      level: { get: () => scene.xp.level },
+      sprite: { get: () => scene.companionSprite },
+      say: { value: (text: string) => scene.say(text) },
+    }) as CompanionContext;
+  }
+
+  /** Speech bubble above the companion for a couple of seconds. */
+  private say(text: string): void {
+    this.speech?.destroy();
+    const bubble = this.add.text(this.companionSprite.x, this.companionSprite.y - 22, text, {
+      fontFamily: FONT, fontSize: '14px', color: '#1a1a1a', backgroundColor: '#fff4d6', padding: { x: 6, y: 3 },
+    }).setOrigin(0.5, 1).setDepth(DEPTH.hud - 1);
+    this.speech = bubble;
+    this.time.delayedCall(2200, () => {
+      bubble.destroy();
+      if (this.speech === bubble) this.speech = undefined;
+    });
   }
 
   /** Creates a runtime weapon for every weapon in the loadout that doesn't have one yet. */
@@ -205,12 +250,13 @@ export class GameScene extends Phaser.Scene {
     this.player.y = Phaser.Math.Clamp(this.player.y + dy * step, PLAYER_RADIUS, WORLD_SIZE - PLAYER_RADIUS);
     if (dx !== 0) this.player.setFlipX(dx < 0);
 
-    // Daxter rides on Jak's shoulder, lagging slightly behind
+    // The companion rides on Jak's shoulder, lagging slightly behind
     const facing = this.player.flipX ? 1 : -1;
     const lerp = Math.min(1, dt * 12);
-    this.daxter.x += (this.player.x + facing * 14 - this.daxter.x) * lerp;
-    this.daxter.y += (this.player.y - 18 - this.daxter.y) * lerp;
-    this.daxter.setFlipX(this.player.flipX);
+    this.companionSprite.x += (this.player.x + facing * 14 - this.companionSprite.x) * lerp;
+    this.companionSprite.y += (this.player.y - 18 - this.companionSprite.y) * lerp;
+    this.companionSprite.setFlipX(this.player.flipX);
+    this.speech?.setPosition(this.companionSprite.x, this.companionSprite.y - 22);
 
     const cam = this.cameras.main;
     this.ground.tilePositionX = cam.scrollX;
@@ -271,8 +317,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (contactDps > 0) {
-      this.hp -= contactDps * damageMultiplier(this.elapsed) * (1 - this.stats.armor) * dt;
-      if (this.hurtFlash <= 0) {
+      const damage = contactDps * damageMultiplier(this.elapsed) * (1 - this.stats.armor) * dt;
+      const taken = this.companion.absorb(damage, this.companionContext);
+      this.hp -= taken;
+      if (taken > 0 && this.hurtFlash <= 0) {
         this.player.setTint(0xff5555);
         this.hurtFlash = 0.12;
       }
@@ -393,14 +441,15 @@ export class GameScene extends Phaser.Scene {
 
   private collectOrb(value: number): void {
     this.orbsCollected += value;
-    const result = gainXp(this.xp, value);
+    const result = gainXp(this.xp, value * this.stats.xpMultiplier);
     this.xp = result.state;
     this.pendingLevelUps += result.levelsGained;
   }
 
   private openLevelUp(): void {
     this.pendingLevelUps--;
-    const choices = rollChoices(this.loadout, this.rng);
+    const roll = () => rollChoices(this.loadout, this.rng, this.setup.banned);
+    const choices = roll();
     if (choices.length === 0) {
       // Everything maxed: a heal instead of a choice
       this.hp = Math.min(this.stats.maxHp, this.hp + 30);
@@ -411,6 +460,11 @@ export class GameScene extends Phaser.Scene {
       level: this.xp.level - this.pendingLevelUps,
       choices,
       loadout: this.loadout,
+      rerollsLeft: this.rerolls,
+      onReroll: () => {
+        this.rerolls--;
+        return roll();
+      },
       onChoose: (id) => {
         this.chooseItem(id);
         this.scene.stop('LevelUp');
@@ -424,7 +478,7 @@ export class GameScene extends Phaser.Scene {
   private chooseItem(id: ItemId): void {
     const oldMax = this.stats.maxHp;
     this.loadout = applyItem(this.loadout, id);
-    this.stats = computeStats(this.loadout);
+    this.stats = computeStats(this.loadout, this.bonuses);
     this.syncWeapons();
     // Green eco raises max HP; heal by the same amount so the bar doesn't look emptier
     this.hp += this.stats.maxHp - oldMax;

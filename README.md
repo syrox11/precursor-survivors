@@ -39,18 +39,38 @@ A browser game in the style of *Vampire Survivors*, set in the world of *Jak and
 
 Enemies get tougher and more numerous over time: Lurker Puppies from the start, Babaks from 1:30 and Lurker Crabs from 3:30. From minute 2, a horde surrounds you every minute.
 
+### Between runs
+
+Every run pays out **Precursor batteries** (time survived, Lurkers defeated, a bonus for the Power Cell). Spend them in the **shop**, then set up your next run:
+
+- **Starting weapon:** start with any weapon you have unlocked instead of the Spin Kick.
+- **Companion:** each one rides with Jak and actually helps.
+
+  | Companion | Effect |
+  |-----------|--------|
+  | Daxter | +10% speed, attracts orbs from further away |
+  | Daxter (with pants) | Sprays bug spray at nearby Lurkers |
+  | Pecker | +15% XP and warns you before each horde |
+  | Clank | Shield that blocks all damage for 1.5s, recharges every 12s |
+
+- **Bans:** pick items that will never be offered on level up, to steer your build. Ban slots are bought in the shop.
+- **Skin:** Jak, Jak II, Jak 3, plus Dark Jak and Light Jak, which are earned through challenges.
+- **Power-ups:** permanent upgrades to health, damage, speed, pickup range, XP and armor, plus rerolls for level-up offers.
+
+Progress is saved in the browser (`localStorage`), with a versioned format that is validated on load.
+
 ## Roadmap
 
 - [x] **Phase 1:** core loop (movement, Lurkers, orbs, levels, eco upgrades, one map)
 - [x] **Phase 2:** weapons from the Morph Gun (*Jak II* and *Jak 3*), weapon and passive slots, harder difficulty curve with hordes
-- [ ] **Phase 3:** meta progression: Precursor batteries, an unlock shop, playable characters (Dark Jak, Light Jak...) and skins
+- [x] **Phase 3:** meta progression: Precursor batteries, shop, permanent power-ups, starting weapon, companions, bans, skins and challenges
 - [ ] **Phase 4:** more maps and bosses, Daxter commentary
 - [ ] **Phase 5:** E2E tests with Playwright on the canvas, performance checks
 
 ## Tech
 
 - [Phaser 4](https://phaser.io/) + TypeScript, bundled with Vite
-- Game rules (XP curve, upgrades, stats, waves, records) live in `src/logic/` as plain functions with no Phaser dependency, so they are unit-tested with Vitest
+- Game rules (XP curve, items, stats, waves, save data, shop prices, rewards) live in `src/logic/` as plain functions with no Phaser dependency, so they are unit-tested with Vitest
 - Seeded random generator: add `?seed=123` to the URL to get a reproducible run (same spawns, same upgrade offers)
 - Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, and `?debug&items=arc:3,scatter:2` starts the run with those items
 - GitHub Actions: typecheck, unit tests and build on every push; deploys to GitHub Pages from `main`
@@ -69,9 +89,10 @@ src/
 ├── main.ts            # Phaser game config
 ├── config.ts          # Screen size, world size, colours
 ├── debug.ts           # ?debug test hooks
-├── combat/            # Weapon behaviours and the combat interface they use
-├── logic/             # Pure game rules (unit-tested)
-└── scenes/            # Boot (placeholder art), Title, Game, LevelUp, GameOver
+├── combat/            # Weapon and companion behaviours, and the combat interface they use
+├── logic/             # Pure game rules, save format and shop (unit-tested)
+├── ui/                # Shared UI pieces (buttons)
+└── scenes/            # Boot (placeholder art), Title, Setup, Shop, Game, LevelUp, GameOver
 tests/unit/            # Vitest specs for src/logic
 ```
 

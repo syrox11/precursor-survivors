@@ -45,6 +45,10 @@ export type Loadout = Partial<Record<ItemId, number>>;
 
 export const STARTING_LOADOUT: Loadout = { spin: 1 };
 
+export function startingLoadout(weapon: WeaponId): Loadout {
+  return { [weapon]: 1 };
+}
+
 export const SLOTS: Record<ItemKind, number> = { weapon: 4, passive: 4 };
 
 export function levelOf(loadout: Loadout, id: ItemId): number {
@@ -55,19 +59,22 @@ export function ownedOfKind(loadout: Loadout, kind: ItemKind): ItemId[] {
   return (Object.keys(loadout) as ItemId[]).filter((id) => ITEMS[id].kind === kind);
 }
 
-/** Items that can still be offered: owned ones not maxed, plus new ones while that kind has free slots. */
-export function availableItems(loadout: Loadout): ItemId[] {
+/**
+ * Items that can still be offered: owned ones not maxed, plus new ones while that kind has free slots.
+ * Banned items are never offered as new picks.
+ */
+export function availableItems(loadout: Loadout, banned: readonly ItemId[] = []): ItemId[] {
   return (Object.keys(ITEMS) as ItemId[]).filter((id) => {
     const def = ITEMS[id];
     const level = levelOf(loadout, id);
     if (level > 0) return level < def.maxLevel;
-    return ownedOfKind(loadout, def.kind).length < SLOTS[def.kind];
+    return !banned.includes(id) && ownedOfKind(loadout, def.kind).length < SLOTS[def.kind];
   });
 }
 
 /** Up to `count` distinct offers; empty when everything is maxed and every slot is full. */
-export function rollChoices(loadout: Loadout, rng: Rng, count = 3): ItemId[] {
-  return shuffle(rng, availableItems(loadout)).slice(0, count);
+export function rollChoices(loadout: Loadout, rng: Rng, banned: readonly ItemId[] = [], count = 3): ItemId[] {
+  return shuffle(rng, availableItems(loadout, banned)).slice(0, count);
 }
 
 export function applyItem(loadout: Loadout, id: ItemId): Loadout {
