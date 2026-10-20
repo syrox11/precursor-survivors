@@ -57,6 +57,27 @@ export class BootScene extends Phaser.Scene {
       g.fillStyle(0xffffff).fillCircle(7, 7, 3);
     });
 
+    this.texture('pellet', 10, 10, (g) => {
+      g.fillStyle(0xe5383b).fillCircle(5, 5, 5);
+      g.fillStyle(0xffb3b3).fillCircle(4, 4, 2);
+    });
+
+    this.texture('bolt', 18, 6, (g) => {
+      g.fillStyle(0xffa62b).fillRoundedRect(0, 0, 18, 6, 3);
+      g.fillStyle(0xfff3c4).fillRoundedRect(6, 1, 11, 4, 2);
+    });
+
+    this.texture('vulcanShot', 8, 8, (g) => {
+      g.fillStyle(0x4cc9f0).fillCircle(4, 4, 4);
+      g.fillStyle(0xffffff).fillCircle(4, 4, 1.5);
+    });
+
+    this.texture('peacemakerOrb', 24, 24, (g) => {
+      g.fillStyle(0x5a189a, 0.6).fillCircle(12, 12, 12);
+      g.fillStyle(0x9d4edd).fillCircle(12, 12, 8);
+      g.fillStyle(0xe0aaff).fillCircle(12, 12, 4);
+    });
+
     this.texture('sand', 64, 64, (g) => {
       g.fillStyle(0xe6d3a3).fillRect(0, 0, 64, 64);
       for (let i = 0; i < 18; i++) {

@@ -12,22 +12,37 @@ A browser game in the style of *Vampire Survivors*, set in the world of *Jak and
 
 - **Move:** WASD or arrow keys. Attacks are automatic.
 - Defeated Lurkers drop **Precursor orbs**. Collect them to level up.
-- On every level up, pick one of three upgrades:
+- On every level up, pick one of three upgrades. You can carry **4 weapons and 4 passives**, each up to level 5.
 
-| Upgrade | Effect |
+**Weapons**
+
+| Weapon | From | What it does |
+|--------|------|--------------|
+| Spin Kick | Jak and Daxter | Jak's starting attack: hits everything around him |
+| Yellow Eco | Jak and Daxter | Eco blasts at the closest Lurkers |
+| Scatter Gun | Jak II | Short-range shotgun cone where you face |
+| Blaster | Jak II | Rapid shots at the closest Lurker, pierces from level 4 |
+| Vulcan Fury | Jak II | Bullet bursts where you face |
+| Peacemaker | Jak II | Slow orb that explodes in a big area |
+| Arc Wielder | Jak 3 | Lightning that chains between Lurkers |
+
+**Passives**
+
+| Passive | Effect |
 |---------|--------|
-| Spin Kick | Jak's starting attack: bigger area, faster and stronger |
-| Red Eco | More damage on every attack |
+| Red Eco | +15% damage |
 | Blue Eco | Faster movement, orbs are attracted from further away |
 | Green Eco | More max health and regeneration |
-| Yellow Eco | Fires eco blasts at the closest Lurkers |
+| Precursor Armor | Less damage taken |
+| Eco Amplifier | Bigger attack area |
+| Keira's Tune-up | Shorter weapon cooldowns |
 
-Enemies get tougher and more numerous over time: Lurker Puppies from the start, Babaks from 0:45 and Lurker Crabs from 2:30.
+Enemies get tougher and more numerous over time: Lurker Puppies from the start, Babaks from 1:30 and Lurker Crabs from 3:30. From minute 2, a horde surrounds you every minute.
 
 ## Roadmap
 
 - [x] **Phase 1:** core loop (movement, Lurkers, orbs, levels, eco upgrades, one map)
-- [ ] **Phase 2:** weapons: the Morph Gun and its mods from *Jak II* and *Jak 3*
+- [x] **Phase 2:** weapons from the Morph Gun (*Jak II* and *Jak 3*), weapon and passive slots, harder difficulty curve with hordes
 - [ ] **Phase 3:** meta progression: Precursor batteries, an unlock shop, playable characters (Dark Jak, Light Jak...) and skins
 - [ ] **Phase 4:** more maps and bosses, Daxter commentary
 - [ ] **Phase 5:** E2E tests with Playwright on the canvas, performance checks
@@ -37,6 +52,7 @@ Enemies get tougher and more numerous over time: Lurker Puppies from the start, 
 - [Phaser 4](https://phaser.io/) + TypeScript, bundled with Vite
 - Game rules (XP curve, upgrades, stats, waves, records) live in `src/logic/` as plain functions with no Phaser dependency, so they are unit-tested with Vitest
 - Seeded random generator: add `?seed=123` to the URL to get a reproducible run (same spawns, same upgrade offers)
+- Debug mode for testing: `?debug` exposes a read-only snapshot of the run on `window.__precursor`, and `?debug&items=arc:3,scatter:2` starts the run with those items
 - GitHub Actions: typecheck, unit tests and build on every push; deploys to GitHub Pages from `main`
 
 ```bash
@@ -52,6 +68,8 @@ npm run build    # typecheck + production build in dist/
 src/
 ├── main.ts            # Phaser game config
 ├── config.ts          # Screen size, world size, colours
+├── debug.ts           # ?debug test hooks
+├── combat/            # Weapon behaviours and the combat interface they use
 ├── logic/             # Pure game rules (unit-tested)
 └── scenes/            # Boot (placeholder art), Title, Game, LevelUp, GameOver
 tests/unit/            # Vitest specs for src/logic

@@ -1,12 +1,12 @@
 import * as Phaser from 'phaser';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH } from '../config';
-import { UPGRADES, type UpgradeId, type UpgradeLevels } from '../logic/upgrades';
+import { ITEMS, levelOf, type ItemId, type Loadout } from '../logic/items';
 
 export interface LevelUpData {
   level: number;
-  choices: UpgradeId[];
-  levels: UpgradeLevels;
-  onChoose: (id: UpgradeId) => void;
+  choices: ItemId[];
+  loadout: Loadout;
+  onChoose: (id: ItemId) => void;
 }
 
 /** Overlay shown on top of the paused game. Pick with a click or the 1/2/3 keys. */
@@ -21,22 +21,22 @@ export class LevelUpScene extends Phaser.Scene {
     this.add.text(cx, 90, `LEVEL ${data.level}!`, { fontFamily: FONT, fontSize: '40px', color: COLORS.accent, fontStyle: 'bold' })
       .setOrigin(0.5)
       .setStroke('#3a2a10', 6);
-    this.add.text(cx, 135, 'Choose your eco', { fontFamily: FONT, fontSize: '18px', color: COLORS.text }).setOrigin(0.5);
+    this.add.text(cx, 135, 'Choose an upgrade', { fontFamily: FONT, fontSize: '18px', color: COLORS.text }).setOrigin(0.5);
 
     const cardWidth = 250;
     const gap = 30;
     const startX = cx - ((data.choices.length - 1) * (cardWidth + gap)) / 2;
 
     let chosen = false;
-    const choose = (id: UpgradeId) => {
+    const choose = (id: ItemId) => {
       if (chosen) return;
       chosen = true;
       data.onChoose(id);
     };
 
     data.choices.forEach((id, i) => {
-      const def = UPGRADES[id];
-      const nextLevel = data.levels[id] + 1;
+      const def = ITEMS[id];
+      const nextLevel = levelOf(data.loadout, id) + 1;
       const x = startX + i * (cardWidth + gap);
       const y = 290;
 
@@ -45,6 +45,8 @@ export class LevelUpScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       this.add.circle(x, y - 60, 22, def.color);
       this.add.text(x, y - 15, def.name, { fontFamily: FONT, fontSize: '22px', color: COLORS.text, fontStyle: 'bold' }).setOrigin(0.5);
+      this.add.text(x, y - 98, def.kind === 'weapon' ? 'WEAPON' : 'PASSIVE', { fontFamily: FONT, fontSize: '12px', color: COLORS.text })
+        .setOrigin(0.5).setAlpha(0.7);
       this.add.text(x, y + 15, nextLevel === 1 ? 'NEW' : `Level ${nextLevel}`, { fontFamily: FONT, fontSize: '14px', color: COLORS.accent })
         .setOrigin(0.5);
       this.add.text(x, y + 55, def.describe(nextLevel), {

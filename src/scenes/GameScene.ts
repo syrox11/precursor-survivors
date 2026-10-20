@@ -1,22 +1,16 @@
 import * as Phaser from 'phaser';
+import { createWeapon, type Weapon } from '../combat/weapons';
+import type { Combat, Enemy, Point, ProjectileSpec } from '../combat/types';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, PLAYER_RADIUS, RUN_DURATION, WORLD_SIZE } from '../config';
+import { debugEnabled, debugLoadout, exposeDebug } from '../debug';
+import { applyItem, ITEMS, ownedOfKind, rollChoices, STARTING_LOADOUT, type ItemId, type Loadout, type WeaponId } from '../logic/items';
+import { formatTime } from '../logic/records';
 import { createRng, randomBetween, seedFromQuery, type Rng } from '../logic/rng';
 import { computeStats, type PlayerStats } from '../logic/stats';
-import { applyUpgrade, rollChoices, STARTING_LEVELS, type UpgradeId, type UpgradeLevels } from '../logic/upgrades';
-import { hpMultiplier, MAX_ENEMIES, pickEnemy, spawnInterval, type EnemyDef } from '../logic/waves';
+import { damageMultiplier, hordeSize, hpMultiplier, MAX_ENEMIES, pickEnemy, spawnInterval, type EnemyDef } from '../logic/waves';
 import { gainXp, INITIAL_XP, xpToNextLevel, type XpState } from '../logic/xp';
-import { formatTime } from '../logic/records';
-import type { LevelUpData } from './LevelUpScene';
 import type { RunResult } from './GameOverScene';
-
-interface Enemy {
-  sprite: Phaser.GameObjects.Image;
-  def: EnemyDef;
-  hp: number;
-  knockX: number;
-  knockY: number;
-  flash: number;
-}
+import type { LevelUpData } from './LevelUpScene';
 
 interface Orb {
   sprite: Phaser.GameObjects.Image;
@@ -24,20 +18,21 @@ interface Orb {
   attracted: boolean;
 }
 
-interface Blast {
+interface Projectile {
   sprite: Phaser.GameObjects.Image;
+  spec: ProjectileSpec;
   vx: number;
   vy: number;
   life: number;
-  damage: number;
+  pierceLeft: number;
+  /** Enemies already hit, so piercing shots don't hit the same one every frame. */
+  hit: Set<Enemy>;
 }
 
 const ORB_SPEED = 420;
-const BLAST_SPEED = 420;
-const BLAST_LIFE = 1.4;
-const BLAST_RADIUS = 7;
 const KNOCKBACK = 240;
 const KNOCKBACK_DECAY = 8;
+const SPAWN_DISTANCE = Math.hypot(GAME_WIDTH, GAME_HEIGHT) / 2 + 40;
 
 const DEPTH = { decor: 1, orb: 2, enemy: 3, player: 4, daxter: 5, fx: 6, hud: 100 };
 
@@ -48,13 +43,16 @@ export class GameScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Image;
   private daxter!: Phaser.GameObjects.Image;
   private ground!: Phaser.GameObjects.TileSprite;
+  private aim: Point = { x: 1, y: 0 };
 
   private enemies: Enemy[] = [];
   private orbs: Orb[] = [];
-  private blasts: Blast[] = [];
+  private projectiles: Projectile[] = [];
+  private weapons = new Map<WeaponId, Weapon>();
+  private combat!: Combat;
 
-  private levels: UpgradeLevels = STARTING_LEVELS;
-  private stats: PlayerStats = computeStats(STARTING_LEVELS);
+  private loadout: Loadout = STARTING_LOADOUT;
+  private stats: PlayerStats = computeStats(STARTING_LOADOUT);
   private xp: XpState = INITIAL_XP;
   private hp = 0;
   private hurtFlash = 0;
@@ -64,8 +62,6 @@ export class GameScene extends Phaser.Scene {
   private kills = 0;
   private orbsCollected = 0;
   private spawnTimer = 0;
-  private spinTimer = 0;
-  private blastTimer = 0;
   private ended = false;
 
   private hud!: {
@@ -74,6 +70,7 @@ export class GameScene extends Phaser.Scene {
     level: Phaser.GameObjects.Text;
     timer: Phaser.GameObjects.Text;
     counters: Phaser.GameObjects.Text;
+    loadout: Phaser.GameObjects.Container;
   };
 
   constructor() {
@@ -81,10 +78,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.resetState();
-
     const seed = seedFromQuery(window.location.search) ?? Math.floor(Math.random() * 2 ** 32);
     this.rng = createRng(seed);
+    this.resetState();
+    if (debugEnabled(window.location.search)) {
+      this.loadout = { ...this.loadout, ...debugLoadout(window.location.search) };
+      this.stats = computeStats(this.loadout);
+      this.hp = this.stats.maxHp;
+    }
 
     this.ground = this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'sand').setOrigin(0).setScrollFactor(0);
     this.scatterDecor();
@@ -92,24 +93,41 @@ export class GameScene extends Phaser.Scene {
     const center = WORLD_SIZE / 2;
     this.player = this.add.image(center, center, 'jak').setDepth(DEPTH.player);
     this.daxter = this.add.image(center - 14, center - 18, 'daxter').setDepth(DEPTH.daxter);
-
     this.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE).startFollow(this.player, true, 0.15, 0.15);
 
     this.keys = this.input.keyboard!.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT') as typeof this.keys;
+    this.combat = this.createCombat();
+    this.syncWeapons();
     this.createHud();
+
+    if (debugEnabled(window.location.search)) {
+      exposeDebug(() => ({
+        elapsed: this.elapsed,
+        hp: this.hp,
+        maxHp: this.stats.maxHp,
+        level: this.xp.level,
+        kills: this.kills,
+        player: { x: this.player.x, y: this.player.y },
+        enemies: this.enemies.map((e) => ({ x: e.sprite.x, y: e.sprite.y })),
+        orbs: this.orbs.map((o) => ({ x: o.sprite.x, y: o.sprite.y })),
+        loadout: { ...this.loadout },
+        state: this.ended ? 'over' : this.scene.isPaused() ? 'levelUp' : 'playing',
+      }));
+    }
   }
 
   update(_time: number, deltaMs: number): void {
     if (this.ended) return;
     // Cap the step so a background tab doesn't teleport everything on return
     const dt = Math.min(deltaMs, 50) / 1000;
+    const previous = this.elapsed;
     this.elapsed += dt;
 
     this.movePlayer(dt);
-    this.spawnEnemies(dt);
+    this.spawnEnemies(dt, previous);
     this.updateEnemies(dt);
-    this.updateSpin(dt);
-    this.updateBlasts(dt);
+    for (const [id, weapon] of this.weapons) weapon.update(dt, this.loadout[id] ?? 1, this.combat);
+    this.updateProjectiles(dt);
     this.updateOrbs(dt);
 
     this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.regen * dt);
@@ -123,9 +141,11 @@ export class GameScene extends Phaser.Scene {
   private resetState(): void {
     this.enemies = [];
     this.orbs = [];
-    this.blasts = [];
-    this.levels = STARTING_LEVELS;
-    this.stats = computeStats(this.levels);
+    this.projectiles = [];
+    this.weapons = new Map();
+    this.aim = { x: 1, y: 0 };
+    this.loadout = STARTING_LOADOUT;
+    this.stats = computeStats(this.loadout);
     this.xp = INITIAL_XP;
     this.hp = this.stats.maxHp;
     this.hurtFlash = 0;
@@ -134,9 +154,31 @@ export class GameScene extends Phaser.Scene {
     this.kills = 0;
     this.orbsCollected = 0;
     this.spawnTimer = 0;
-    this.spinTimer = this.stats.spin.cooldown;
-    this.blastTimer = 0;
     this.ended = false;
+  }
+
+  /** The view of the game that weapons get. Getters so they always see live values. */
+  private createCombat(): Combat {
+    const scene = this;
+    return {
+      scene,
+      get player() { return scene.player; },
+      get aim() { return scene.aim; },
+      get enemies() { return scene.enemies; },
+      get stats() { return scene.stats; },
+      get rng() { return scene.rng; },
+      damage: (enemy, amount, knockFrom) => this.damageEnemy(enemy, amount, knockFrom),
+      nearestEnemies: (count, from, maxDistance) => this.nearestEnemies(count, from ?? this.player, maxDistance),
+      fire: (spec) => this.fireProjectile(spec),
+      explode: (at, radius, damage, color) => this.explode(at, radius, damage, color),
+    };
+  }
+
+  /** Creates a runtime weapon for every weapon in the loadout that doesn't have one yet. */
+  private syncWeapons(): void {
+    for (const id of ownedOfKind(this.loadout, 'weapon') as WeaponId[]) {
+      if (!this.weapons.has(id)) this.weapons.set(id, createWeapon(id));
+    }
   }
 
   private scatterDecor(): void {
@@ -156,6 +198,8 @@ export class GameScene extends Phaser.Scene {
       dx *= Math.SQRT1_2;
       dy *= Math.SQRT1_2;
     }
+    if (dx !== 0 || dy !== 0) this.aim = { x: dx, y: dy };
+
     const step = this.stats.moveSpeed * dt;
     this.player.x = Phaser.Math.Clamp(this.player.x + dx * step, PLAYER_RADIUS, WORLD_SIZE - PLAYER_RADIUS);
     this.player.y = Phaser.Math.Clamp(this.player.y + dy * step, PLAYER_RADIUS, WORLD_SIZE - PLAYER_RADIUS);
@@ -178,21 +222,29 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private spawnEnemies(dt: number): void {
+  private spawnEnemies(dt: number, previous: number): void {
     this.spawnTimer -= dt;
     while (this.spawnTimer <= 0) {
       this.spawnTimer += spawnInterval(this.elapsed);
-      if (this.enemies.length >= MAX_ENEMIES) continue;
-      this.spawnEnemy(pickEnemy(this.elapsed, this.rng));
+      if (this.enemies.length < MAX_ENEMIES) {
+        this.spawnEnemy(pickEnemy(this.elapsed, this.rng), this.rng() * Math.PI * 2);
+      }
+    }
+
+    // Every minute a ring of Lurkers closes in from all sides
+    const horde = hordeSize(previous, this.elapsed);
+    if (horde > 0) {
+      const offset = this.rng() * Math.PI * 2;
+      for (let i = 0; i < horde; i++) {
+        this.spawnEnemy(pickEnemy(this.elapsed, this.rng), offset + (i / horde) * Math.PI * 2);
+      }
+      this.cameras.main.shake(250, 0.004);
     }
   }
 
-  private spawnEnemy(def: EnemyDef): void {
-    // Just outside the visible area, in a random direction
-    const angle = this.rng() * Math.PI * 2;
-    const distance = Math.hypot(GAME_WIDTH, GAME_HEIGHT) / 2 + 40;
-    const x = Phaser.Math.Clamp(this.player.x + Math.cos(angle) * distance, 0, WORLD_SIZE);
-    const y = Phaser.Math.Clamp(this.player.y + Math.sin(angle) * distance, 0, WORLD_SIZE);
+  private spawnEnemy(def: EnemyDef, angle: number): void {
+    const x = Phaser.Math.Clamp(this.player.x + Math.cos(angle) * SPAWN_DISTANCE, 0, WORLD_SIZE);
+    const y = Phaser.Math.Clamp(this.player.y + Math.sin(angle) * SPAWN_DISTANCE, 0, WORLD_SIZE);
     const sprite = this.add.image(x, y, def.texture).setDepth(DEPTH.enemy);
     this.enemies.push({ sprite, def, hp: def.hp * hpMultiplier(this.elapsed), knockX: 0, knockY: 0, flash: 0 });
   }
@@ -219,7 +271,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (contactDps > 0) {
-      this.hp -= contactDps * dt;
+      this.hp -= contactDps * damageMultiplier(this.elapsed) * (1 - this.stats.armor) * dt;
       if (this.hurtFlash <= 0) {
         this.player.setTint(0xff5555);
         this.hurtFlash = 0.12;
@@ -227,81 +279,90 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private updateSpin(dt: number): void {
-    this.spinTimer -= dt;
-    if (this.spinTimer > 0) return;
-    const { radius, cooldown, damage } = this.stats.spin;
-    this.spinTimer += cooldown;
+  private nearestEnemies(count: number, from: Point, maxDistance = Infinity): Enemy[] {
+    return this.enemies
+      .map((enemy) => ({ enemy, dist: Math.hypot(enemy.sprite.x - from.x, enemy.sprite.y - from.y) }))
+      .filter((e) => e.dist <= maxDistance)
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, count)
+      .map((e) => e.enemy);
+  }
 
-    const ring = this.add.circle(this.player.x, this.player.y, radius)
-      .setStrokeStyle(4, 0x7fd8ff, 0.9)
-      .setDepth(DEPTH.fx)
-      .setScale(0.3);
-    this.tweens.add({ targets: ring, scale: 1, alpha: 0, duration: 250, onComplete: () => ring.destroy() });
+  private fireProjectile(spec: ProjectileSpec): void {
+    const sprite = this.add.image(spec.x, spec.y, spec.texture).setDepth(DEPTH.fx);
+    if (spec.rotate) sprite.setRotation(spec.angle);
+    this.projectiles.push({
+      sprite,
+      spec,
+      vx: Math.cos(spec.angle) * spec.speed,
+      vy: Math.sin(spec.angle) * spec.speed,
+      life: spec.life,
+      pierceLeft: spec.pierce ?? 0,
+      hit: new Set(),
+    });
+  }
 
+  private updateProjectiles(dt: number): void {
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      p.life -= dt;
+      p.sprite.x += p.vx * dt;
+      p.sprite.y += p.vy * dt;
+
+      let done = p.life <= 0;
+      for (const enemy of this.enemies) {
+        if (done) break;
+        if (p.hit.has(enemy)) continue;
+        const reach = enemy.def.radius + p.spec.radius;
+        const dx = enemy.sprite.x - p.sprite.x;
+        const dy = enemy.sprite.y - p.sprite.y;
+        if (dx * dx + dy * dy > reach * reach) continue;
+
+        if (p.spec.explosion) {
+          done = true;
+        } else {
+          p.hit.add(enemy);
+          this.damageEnemy(enemy, p.spec.damage, p.sprite);
+          if (p.pierceLeft-- <= 0) done = true;
+        }
+      }
+
+      if (done) {
+        const blast = p.spec.explosion;
+        if (blast) this.explode(p.sprite, blast.radius, blast.damage, blast.color);
+        p.sprite.destroy();
+        this.projectiles.splice(i, 1);
+      }
+    }
+  }
+
+  private explode(at: Point, radius: number, damage: number, color: number): void {
+    const { x, y } = at;
+    const fx = this.add.circle(x, y, radius, color, 0.45).setDepth(DEPTH.fx).setScale(0.2);
+    this.tweens.add({ targets: fx, scale: 1, alpha: 0, duration: 300, onComplete: () => fx.destroy() });
     for (const enemy of [...this.enemies]) {
-      const dx = enemy.sprite.x - this.player.x;
-      const dy = enemy.sprite.y - this.player.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      if (dist <= radius + enemy.def.radius) {
-        enemy.knockX = (dx / dist) * KNOCKBACK;
-        enemy.knockY = (dy / dist) * KNOCKBACK;
-        this.damageEnemy(enemy, damage * this.stats.damageMultiplier);
+      if (Math.hypot(enemy.sprite.x - x, enemy.sprite.y - y) <= radius + enemy.def.radius) {
+        this.damageEnemy(enemy, damage, { x, y });
       }
     }
   }
 
-  private updateBlasts(dt: number): void {
-    const blast = this.stats.blast;
-    if (blast) {
-      this.blastTimer -= dt;
-      if (this.blastTimer <= 0 && this.enemies.length > 0) {
-        this.blastTimer = blast.cooldown;
-        this.fireBlasts(blast.count, blast.damage * this.stats.damageMultiplier);
-      }
-    }
-
-    for (let i = this.blasts.length - 1; i >= 0; i--) {
-      const b = this.blasts[i];
-      b.life -= dt;
-      b.sprite.x += b.vx * dt;
-      b.sprite.y += b.vy * dt;
-      const hit = this.enemies.find(
-        (e) => Math.hypot(e.sprite.x - b.sprite.x, e.sprite.y - b.sprite.y) < e.def.radius + BLAST_RADIUS,
-      );
-      if (hit) this.damageEnemy(hit, b.damage);
-      if (hit || b.life <= 0) {
-        b.sprite.destroy();
-        this.blasts.splice(i, 1);
-      }
-    }
-  }
-
-  /** One blast per target, aimed at the closest enemies first. */
-  private fireBlasts(count: number, damage: number): void {
-    const targets = [...this.enemies]
-      .sort((a, b) => this.distanceToPlayer(a.sprite) - this.distanceToPlayer(b.sprite))
-      .slice(0, count);
-    for (let i = 0; i < count; i++) {
-      const target = targets[i % targets.length].sprite;
-      // Extra blasts on the same target fan out a little
-      const angle = Math.atan2(target.y - this.player.y, target.x - this.player.x) + (i >= targets.length ? (i - targets.length + 1) * 0.25 : 0);
-      const sprite = this.add.image(this.player.x, this.player.y, 'blast').setDepth(DEPTH.fx);
-      this.blasts.push({ sprite, vx: Math.cos(angle) * BLAST_SPEED, vy: Math.sin(angle) * BLAST_SPEED, life: BLAST_LIFE, damage });
-    }
-  }
-
-  private damageEnemy(enemy: Enemy, amount: number): void {
+  private damageEnemy(enemy: Enemy, amount: number, knockFrom?: Point): void {
+    if (!this.enemies.includes(enemy)) return;
     enemy.hp -= amount;
     enemy.sprite.setTint(0xffaaaa);
     enemy.flash = 0.08;
+    if (knockFrom) {
+      const dx = enemy.sprite.x - knockFrom.x;
+      const dy = enemy.sprite.y - knockFrom.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      enemy.knockX = (dx / dist) * KNOCKBACK;
+      enemy.knockY = (dy / dist) * KNOCKBACK;
+    }
     if (enemy.hp > 0) return;
 
-    const index = this.enemies.indexOf(enemy);
-    if (index === -1) return;
-    this.enemies.splice(index, 1);
+    this.enemies.splice(this.enemies.indexOf(enemy), 1);
     this.kills++;
-
     const { x, y } = enemy.sprite;
     enemy.sprite.destroy();
     const orb = this.add.image(x, y, 'orb').setDepth(DEPTH.orb).setScale(enemy.def.xp > 1 ? 1.3 : 1);
@@ -339,7 +400,7 @@ export class GameScene extends Phaser.Scene {
 
   private openLevelUp(): void {
     this.pendingLevelUps--;
-    const choices = rollChoices(this.levels, this.rng);
+    const choices = rollChoices(this.loadout, this.rng);
     if (choices.length === 0) {
       // Everything maxed: a heal instead of a choice
       this.hp = Math.min(this.stats.maxHp, this.hp + 30);
@@ -349,9 +410,9 @@ export class GameScene extends Phaser.Scene {
     const data: LevelUpData = {
       level: this.xp.level - this.pendingLevelUps,
       choices,
-      levels: this.levels,
+      loadout: this.loadout,
       onChoose: (id) => {
-        this.chooseUpgrade(id);
+        this.chooseItem(id);
         this.scene.stop('LevelUp');
         this.scene.resume();
       },
@@ -360,12 +421,14 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('LevelUp', data);
   }
 
-  private chooseUpgrade(id: UpgradeId): void {
+  private chooseItem(id: ItemId): void {
     const oldMax = this.stats.maxHp;
-    this.levels = applyUpgrade(this.levels, id);
-    this.stats = computeStats(this.levels);
+    this.loadout = applyItem(this.loadout, id);
+    this.stats = computeStats(this.loadout);
+    this.syncWeapons();
     // Green eco raises max HP; heal by the same amount so the bar doesn't look emptier
     this.hp += this.stats.maxHp - oldMax;
+    this.renderLoadout();
   }
 
   private endRun(won: boolean): void {
@@ -379,10 +442,6 @@ export class GameScene extends Phaser.Scene {
     };
     this.scene.pause();
     this.scene.launch('GameOver', result);
-  }
-
-  private distanceToPlayer(sprite: Phaser.GameObjects.Image): number {
-    return Math.hypot(sprite.x - this.player.x, sprite.y - this.player.y);
   }
 
   private createHud(): void {
@@ -400,8 +459,30 @@ export class GameScene extends Phaser.Scene {
     const level = fixed(this.add.text(16, 46, '', style).setStroke('#000000', 4));
     const timer = fixed(this.add.text(GAME_WIDTH / 2, 20, '', { ...style, fontSize: '26px' }).setOrigin(0.5, 0).setStroke('#000000', 5));
     const counters = fixed(this.add.text(GAME_WIDTH - 16, 22, '', { ...style, align: 'right' }).setOrigin(1, 0).setStroke('#000000', 4));
+    const loadout = fixed(this.add.container(16, GAME_HEIGHT - 66));
 
-    this.hud = { hpFill, xpFill, level, timer, counters };
+    this.hud = { hpFill, xpFill, level, timer, counters, loadout };
+    this.renderLoadout();
+  }
+
+  /** Bottom-left: one row of weapon slots, one of passive slots, with their levels. */
+  private renderLoadout(): void {
+    const box = this.hud.loadout;
+    box.removeAll(true);
+    (['weapon', 'passive'] as const).forEach((kind, row) => {
+      const owned = ownedOfKind(this.loadout, kind);
+      for (let slot = 0; slot < 4; slot++) {
+        const x = slot * 30;
+        const y = row * 30;
+        const id = owned[slot];
+        box.add(this.add.rectangle(x, y, 26, 26, 0x000000, 0.55).setOrigin(0).setStrokeStyle(1, 0xffffff, 0.25));
+        if (!id) continue;
+        box.add(this.add.rectangle(x + 3, y + 3, 20, 20, ITEMS[id].color).setOrigin(0));
+        box.add(this.add.text(x + 24, y + 25, String(this.loadout[id]), {
+          fontFamily: FONT, fontSize: '12px', color: '#ffffff', fontStyle: 'bold',
+        }).setOrigin(1).setStroke('#000000', 3));
+      }
+    });
   }
 
   private updateHud(): void {
@@ -412,4 +493,3 @@ export class GameScene extends Phaser.Scene {
     this.hud.counters.setText(`Lurkers: ${this.kills}\nOrbs: ${this.orbsCollected}`);
   }
 }
-

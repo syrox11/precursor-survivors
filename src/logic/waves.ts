@@ -28,24 +28,42 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   },
   babak: {
     id: 'babak', name: 'Babak', texture: 'babak',
-    hp: 22, speed: 70, dps: 14, radius: 15, xp: 2, unlockAt: 45, weight: 2,
+    hp: 22, speed: 70, dps: 14, radius: 15, xp: 2, unlockAt: 90, weight: 2,
   },
   lurkerCrab: {
     id: 'lurkerCrab', name: 'Lurker Crab', texture: 'lurkerCrab',
-    hp: 70, speed: 45, dps: 22, radius: 18, xp: 4, unlockAt: 150, weight: 1,
+    hp: 70, speed: 45, dps: 22, radius: 18, xp: 4, unlockAt: 210, weight: 1,
   },
 };
 
-export const MAX_ENEMIES = 400;
+export const MAX_ENEMIES = 500;
 
-/** Seconds between spawns: starts at 0.6s and shrinks over time, never below 0.1s. */
+/** Seconds between spawns: starts at 0.55s and shrinks over time, never below 0.07s. */
 export function spawnInterval(elapsed: number): number {
-  return Math.max(0.1, 0.6 * Math.pow(0.85, elapsed / 30));
+  return Math.max(0.07, 0.55 * Math.pow(0.85, elapsed / 30));
 }
 
-/** Enemy HP grows linearly: x2 at 2 minutes, x6 at 10 minutes. */
+/** Enemy HP grows gently at first, then faster: ~x1.9 at 2 minutes, ~x10.6 at 10 minutes. */
 export function hpMultiplier(elapsed: number): number {
-  return 1 + elapsed / 120;
+  return 1 + elapsed / 180 + Math.pow(elapsed / 240, 2);
+}
+
+/** Contact damage grows linearly: x2.5 at 10 minutes. */
+export function damageMultiplier(elapsed: number): number {
+  return 1 + elapsed / 400;
+}
+
+export const HORDE_EVERY = 60;
+export const FIRST_HORDE_MINUTE = 2;
+
+/**
+ * Size of the horde that surrounds the player when a full minute (from minute 2) ticks over between
+ * `previous` and `elapsed`; 0 when no minute boundary was crossed.
+ */
+export function hordeSize(previous: number, elapsed: number): number {
+  const minute = Math.floor(elapsed / HORDE_EVERY);
+  if (minute < FIRST_HORDE_MINUTE || minute === Math.floor(previous / HORDE_EVERY)) return 0;
+  return 10 + 5 * (minute - FIRST_HORDE_MINUTE);
 }
 
 export function unlockedEnemies(elapsed: number): EnemyDef[] {
