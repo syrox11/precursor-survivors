@@ -1,6 +1,9 @@
 import { type Rng, shuffle } from './rng';
 
-export type WeaponId = 'spin' | 'yellowEco' | 'scatter' | 'blaster' | 'vulcan' | 'peacemaker' | 'arc';
+export type WeaponId =
+  | 'spin' | 'yellowEco' | 'scatter' | 'blaster' | 'vulcan' | 'peacemaker' | 'arc'
+  // Jak 3 Morph Gun mods, unlocked in the shop
+  | 'waveConcussor' | 'plasmiteRpg' | 'beamReflexor' | 'gyroBurster' | 'needleLazer' | 'massInverter' | 'superNova';
 export type PassiveId = 'redEco' | 'blueEco' | 'greenEco' | 'armor' | 'amplifier' | 'tuneUp';
 export type ItemId = WeaponId | PassiveId;
 export type ItemKind = 'weapon' | 'passive';
@@ -31,6 +34,13 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   vulcan: weapon('vulcan', 'Vulcan Fury', 0x4cc9f0, 'Bullet bursts where you face', 'Longer bursts, more damage'),
   peacemaker: weapon('peacemaker', 'Peacemaker', 0x9d4edd, 'Slow orb that explodes in a big area', 'Bigger blast, more damage'),
   arc: weapon('arc', 'Arc Wielder', 0x90e0ef, 'Lightning that chains between Lurkers', 'Chains to one more Lurker'),
+  waveConcussor: weapon('waveConcussor', 'Wave Concussor', 0xff6b6b, 'A shockwave across the screen that pushes back and stuns', 'Wider wave, longer stun'),
+  plasmiteRpg: weapon('plasmiteRpg', 'Plasmite RPG', 0xc1121f, 'Rockets at the thickest crowd that leave burning plasma', 'More damage, longer burn'),
+  beamReflexor: weapon('beamReflexor', 'Beam Reflexor', 0xffd166, 'Shots that bounce from Lurker to Lurker', 'One more bounce'),
+  gyroBurster: weapon('gyroBurster', 'Gyro Burster', 0xf4a261, 'A spinning decoy that sprays shots and draws Lurkers in', 'Lasts longer, fires faster'),
+  needleLazer: weapon('needleLazer', 'Needle Lazer', 0x48cae4, 'Swarms of homing needles', 'More needles, more damage'),
+  massInverter: weapon('massInverter', 'Mass Inverter', 0x7b2cbf, 'Lifts Lurkers off the ground, then slams them down', 'Bigger field, harder slam'),
+  superNova: weapon('superNova', 'Super Nova', 0x3c096c, 'A slow-charging nova that blasts everything around Jak', 'Bigger, stronger, more often'),
 
   redEco: passive('redEco', 'Red Eco', 0xd62828, '+15% damage'),
   blueEco: passive('blueEco', 'Blue Eco', 0x3a86ff, '+8% speed, attracts orbs from further away'),
@@ -49,7 +59,7 @@ export function startingLoadout(weapon: WeaponId): Loadout {
   return { [weapon]: 1 };
 }
 
-export const SLOTS: Record<ItemKind, number> = { weapon: 4, passive: 4 };
+export const SLOTS: Record<ItemKind, number> = { weapon: 5, passive: 4 };
 
 export function levelOf(loadout: Loadout, id: ItemId): number {
   return loadout[id] ?? 0;

@@ -577,6 +577,31 @@ export class BootScene extends Phaser.Scene {
       });
     }
 
+    // ---- Jak 3 Morph Gun mods ----
+
+    this.texture('rocket', 22, 10, (g) => {
+      g.fillStyle(0x6c757d).fillRoundedRect(0, 2, 16, 6, 3);
+      g.fillStyle(0xc1121f).fillTriangle(16, 0, 22, 5, 16, 10);
+      g.fillStyle(0xff5400).fillTriangle(0, 1, -6, 5, 0, 9);
+    });
+
+    this.texture('reflexBolt', 14, 6, (g) => {
+      g.fillStyle(0xffd166).fillRoundedRect(0, 0, 14, 6, 3);
+      g.fillStyle(0xffffff).fillRoundedRect(4, 1, 7, 4, 2);
+    });
+
+    this.texture('gyroDrone', 30, 30, (g) => {
+      g.fillStyle(0xf4a261).fillTriangle(15, 0, 19, 15, 11, 15).fillTriangle(15, 30, 11, 15, 19, 15);
+      g.fillStyle(0xf4a261).fillTriangle(0, 15, 15, 11, 15, 19).fillTriangle(30, 15, 15, 19, 15, 11);
+      g.fillStyle(0x495057).fillCircle(15, 15, 7);
+      g.fillStyle(0xffd166).fillCircle(15, 15, 3);
+    });
+
+    this.texture('needle', 12, 4, (g) => {
+      g.fillStyle(0x48cae4).fillTriangle(0, 0, 12, 2, 0, 4);
+      g.fillStyle(0xffffff).fillRect(0, 1.5, 6, 1);
+    });
+
     this.texture('sand', 64, 64, (g) => {
       g.fillStyle(0xe6d3a3).fillRect(0, 0, 64, 64);
       for (let i = 0; i < 18; i++) {

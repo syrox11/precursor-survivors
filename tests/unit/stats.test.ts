@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STARTING_LOADOUT, type WeaponId } from '../../src/logic/items';
+import { ITEMS, STARTING_LOADOUT, type WeaponId } from '../../src/logic/items';
 import { BASE_HP, BASE_SPEED, computeStats } from '../../src/logic/stats';
 import { effectiveCooldown, MIN_COOLDOWN, weaponStats } from '../../src/logic/weapons';
 
@@ -30,7 +30,7 @@ describe('computeStats', () => {
 });
 
 describe('weaponStats', () => {
-  const weapons: WeaponId[] = ['spin', 'yellowEco', 'scatter', 'blaster', 'vulcan', 'peacemaker', 'arc'];
+  const weapons = Object.keys(ITEMS).filter((id) => ITEMS[id as WeaponId].kind === 'weapon') as WeaponId[];
 
   it.each(weapons)('%s gets stronger and never slower with each level', (id) => {
     for (let level = 1; level < 5; level++) {

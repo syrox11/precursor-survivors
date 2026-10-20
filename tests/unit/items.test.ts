@@ -5,7 +5,7 @@ import {
 } from '../../src/logic/items';
 import { createRng } from '../../src/logic/rng';
 
-const fullWeapons: Loadout = { spin: 1, scatter: 1, blaster: 1, vulcan: 1 };
+const fullWeapons: Loadout = { spin: 1, scatter: 1, blaster: 1, vulcan: 1, arc: 1 };
 const fullPassives: Loadout = { redEco: 1, blueEco: 1, greenEco: 1, armor: 1 };
 
 describe('availableItems', () => {
@@ -15,7 +15,7 @@ describe('availableItems', () => {
 
   it('stops offering new weapons once the weapon slots are full', () => {
     const offers = availableItems(fullWeapons);
-    expect(offers.filter((id) => ITEMS[id].kind === 'weapon').sort()).toEqual(['blaster', 'scatter', 'spin', 'vulcan']);
+    expect(offers.filter((id) => ITEMS[id].kind === 'weapon').sort()).toEqual(['arc', 'blaster', 'scatter', 'spin', 'vulcan']);
     expect(offers).toContain('redEco');
   });
 
@@ -46,7 +46,7 @@ describe('rollChoices', () => {
   });
 
   it('offers fewer than 3 when fewer are left', () => {
-    const maxedButOne: Loadout = { spin: 5, scatter: 5, blaster: 5, vulcan: 4, redEco: 5, blueEco: 5, greenEco: 5, armor: 5 };
+    const maxedButOne: Loadout = { spin: 5, scatter: 5, blaster: 5, vulcan: 4, arc: 5, redEco: 5, blueEco: 5, greenEco: 5, armor: 5 };
     expect(rollChoices(maxedButOne, createRng(1))).toEqual(['vulcan']);
   });
 });
@@ -64,7 +64,7 @@ describe('applyItem', () => {
 
   it('ignores items that are not available', () => {
     expect(applyItem({ spin: 5 }, 'spin')).toEqual({ spin: 5 });
-    expect(applyItem(fullWeapons, 'arc')).toEqual(fullWeapons);
+    expect(applyItem(fullWeapons, 'peacemaker')).toEqual(fullWeapons);
   });
 
   it('keeps pick order, which the HUD uses for slot order', () => {
@@ -86,7 +86,7 @@ describe('a full run', () => {
     }
     expect(ownedOfKind(loadout, 'weapon')).toHaveLength(SLOTS.weapon);
     expect(ownedOfKind(loadout, 'passive')).toHaveLength(SLOTS.passive);
-    // 8 items x 5 levels, minus the level of Spin Kick you start with
-    expect(picks).toBe(39);
+    // 9 items x 5 levels, minus the level of Spin Kick you start with
+    expect(picks).toBe(44);
   });
 });

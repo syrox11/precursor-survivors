@@ -32,6 +32,8 @@ export interface Enemy {
   timer: number;
   /** Seconds left in a charge dash. */
   dashing: number;
+  /** Seconds left unable to move or hurt Jak (Wave Concussor, Mass Inverter). Bosses ignore it. */
+  stunned: number;
   /** Set for bosses: their definition and the zone they belong to. */
   boss?: { def: BossDef; zone: number };
 }
@@ -69,4 +71,8 @@ export interface Combat {
   nearestEnemies(count: number, from?: Point, maxDistance?: number): Enemy[];
   fire(spec: ProjectileSpec): void;
   explode(at: Point, radius: number, damage: number, color: number): void;
+  /** Stops a regular enemy for a while; bosses shrug it off. */
+  stun(enemy: Enemy, seconds: number): void;
+  /** Regular enemies within `radius` of `at` go for it instead of Jak until it expires. */
+  decoy(at: Point, radius: number, seconds: number): void;
 }

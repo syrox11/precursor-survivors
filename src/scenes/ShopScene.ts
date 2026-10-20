@@ -1,11 +1,12 @@
 import * as Phaser from 'phaser';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage } from '../config';
+import { COLOR_NAMES, GUN_COLORS, SHOP_WEAPONS } from '../logic/arsenal';
 import { ITEMS, type WeaponId } from '../logic/items';
 import { CHALLENGES, COMPANIONS, POWER_UPS, SKINS, WEAPON_UNLOCK_COST, type PowerUpId, type SkinId } from '../logic/meta';
 import { buy, loadSave, priceOf, writeSave, type Purchase, type SaveData } from '../logic/save';
 import { addButton } from '../ui/button';
 
-type Tab = 'powerUps' | 'weapons' | 'companions' | 'skins';
+type Tab = 'powerUps' | 'weapons' | 'morphGun' | 'companions' | 'skins';
 
 interface Row {
   name: string;
@@ -18,6 +19,7 @@ interface Row {
 const TABS: { id: Tab; label: string }[] = [
   { id: 'powerUps', label: 'Power-ups' },
   { id: 'weapons', label: 'Weapons' },
+  { id: 'morphGun', label: 'Morph Gun' },
   { id: 'companions', label: 'Companions' },
   { id: 'skins', label: 'Skins' },
 ];
@@ -59,8 +61,14 @@ export class ShopScene extends Phaser.Scene {
           },
         ];
       case 'weapons':
-        return (Object.keys(WEAPON_UNLOCK_COST) as WeaponId[]).map((id) => ({
+        return (Object.keys(WEAPON_UNLOCK_COST) as WeaponId[]).filter((id) => !SHOP_WEAPONS.includes(id)).map((id) => ({
           name: ITEMS[id].name, description: `Start a run with it. ${ITEMS[id].describe(1)}`,
+          status: s.weapons.includes(id) ? 'Owned' : undefined, purchase: { kind: 'weapon', id },
+        }));
+      case 'morphGun':
+        return SHOP_WEAPONS.map((id) => ({
+          name: ITEMS[id].name,
+          description: `${COLOR_NAMES[GUN_COLORS[id]!]}. ${ITEMS[id].describe(1)}`,
           status: s.weapons.includes(id) ? 'Owned' : undefined, purchase: { kind: 'weapon', id },
         }));
       case 'companions':
@@ -97,10 +105,10 @@ export class ShopScene extends Phaser.Scene {
 
     TABS.forEach((tab, i) => {
       const active = tab.id === this.tab;
-      add(addButton(this, 130 + i * 175, 100, tab.label, () => {
+      add(addButton(this, 115 + i * 182, 100, tab.label, () => {
         this.tab = tab.id;
         this.render();
-      }, { width: 160, height: 36, fontSize: 16, color: active ? 0xffb703 : 0x4a5a60 }).container);
+      }, { width: 170, height: 36, fontSize: 16, color: active ? 0xffb703 : 0x4a5a60 }).container);
     });
 
     this.rows().forEach((row, i) => {

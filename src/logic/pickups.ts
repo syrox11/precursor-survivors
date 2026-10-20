@@ -1,10 +1,13 @@
 import { ZONE_DURATION } from './maps';
 import type { Rng } from './rng';
 
-export type ChestContent = 'health' | 'magnet' | 'jetBoard' | 'lightEco' | 'darkEco' | 'redEco' | 'yellowEco';
+export type ChestContent =
+  | 'health' | 'magnet' | 'jetBoard' | 'lightEco' | 'darkEco' | 'redEco' | 'yellowEco'
+  /** An upgrade for one of your gun colours or one of your weapons. */
+  | 'weaponMod';
 
 export const CHEST_WEIGHTS: Record<ChestContent, number> = {
-  health: 3, magnet: 3, jetBoard: 2, lightEco: 2, darkEco: 2, redEco: 2, yellowEco: 2,
+  health: 3, magnet: 3, jetBoard: 2, lightEco: 2, darkEco: 2, redEco: 2, yellowEco: 2, weaponMod: 3,
 };
 
 /** Share of max health a health pickup restores. */

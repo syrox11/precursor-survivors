@@ -8,7 +8,7 @@ import type { Combat, Enemy, EnemyStats, Point, ProjectileSpec } from '../combat
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage, PLAYER_RADIUS, RUN_DURATION, WORLD_SIZE } from '../config';
 import { debugEco, debugEnabled, debugGodMode, debugLoadout, debugMap, debugStartTime, exposeDebug } from '../debug';
 import {
-  applyItem, ITEMS, levelOf, ownedOfKind, rollChoices, STARTING_LOADOUT, startingLoadout,
+  applyItem, ITEMS, levelOf, ownedOfKind, rollChoices, SLOTS, STARTING_LOADOUT, startingLoadout,
   type ItemId, type Loadout, type WeaponId,
 } from '../logic/items';
 import {
@@ -29,6 +29,9 @@ import {
 } from '../logic/eco';
 import { darkBlastTick, darkBomb, darkStrike } from '../combat/darkPowers';
 import { describeGift, gambleGift, type Gift, type NpcDef } from '../logic/npcs';
+import {
+  activeSynergies, COLOR_HEX, describeMod, lockedWeapons, rollWeaponMod, weaponModifiers, type WeaponMod,
+} from '../logic/arsenal';
 import { HEALTH_PICKUP, JET_BOARD, RED_ECO, YELLOW_ECO_TURRET_SECONDS, type ChestContent } from '../logic/pickups';
 import { DamageNumbers } from '../ui/damageNumbers';
 import { Indicators } from '../ui/indicators';
@@ -125,6 +128,12 @@ export class GameScene extends Phaser.Scene {
   private bonusBatteries = 0;
   /** Timed buffs from pickups and characters; "until" values are run seconds. */
   private buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
+  /** Chest upgrades for a gun colour or one weapon, for the rest of the run. */
+  private weaponMods: WeaponMod[] = [];
+  /** Gyro Burster decoys pulling enemies in. */
+  private decoys: { x: number; y: number; radius: number; until: number }[] = [];
+  /** Shop weapons not bought yet: they never show up on level up. */
+  private lockedWeapons: WeaponId[] = [];
 
   // Light Jak / Dark Jak
   private eco: EcoState = EMPTY_ECO;
@@ -150,6 +159,7 @@ export class GameScene extends Phaser.Scene {
     lightFill: Phaser.GameObjects.Rectangle;
     darkFill: Phaser.GameObjects.Rectangle;
     ecoHint: Phaser.GameObjects.Text;
+    synergies: Phaser.GameObjects.Text;
     abilities: Phaser.GameObjects.Container;
     /** What the ability bar currently shows, so it is only rebuilt when that changes. */
     abilitiesKey: string;
@@ -165,6 +175,7 @@ export class GameScene extends Phaser.Scene {
     this.rng = createRng(seed);
     const save = loadSave(getStorage());
     this.setup = save.setup;
+    this.lockedWeapons = lockedWeapons(save.weapons);
     this.map = MAPS[this.setup.map];
     this.bonuses = bonusesFor(save.powerUps, this.setup.companion);
     this.rerolls = save.powerUps.reroll ?? 0;
@@ -261,7 +272,10 @@ export class GameScene extends Phaser.Scene {
     const frozen = this.elapsed < this.frozenUntil;
     if (!frozen) this.spawnEnemies(dt, previous);
     this.updateEnemies(dt, frozen);
-    for (const [id, weapon] of this.weapons) weapon.update(dt, this.loadout[id] ?? 1, this.combat);
+    for (const [id, weapon] of this.weapons) {
+      weapon.update(dt, this.loadout[id] ?? 1, this.combat, weaponModifiers(id, this.loadout, this.weaponMods));
+    }
+    this.decoys = this.decoys.filter((d) => this.elapsed < d.until);
     this.companion.update(dt, this.companionContext);
     this.allies.update(dt, this.combat, this.elapsed);
     this.updateProjectiles(dt);
@@ -323,6 +337,8 @@ export class GameScene extends Phaser.Scene {
     this.pendingGifts = [];
     this.bonusBatteries = 0;
     this.buffs = { damage: 1, damageUntil: 0, speed: 1, speedUntil: 0, boardUntil: 0, invulnerableUntil: 0 };
+    this.weaponMods = [];
+    this.decoys = [];
     this.eco = EMPTY_ECO;
     this.frozenUntil = 0;
     this.invisibleUntil = 0;
@@ -346,6 +362,12 @@ export class GameScene extends Phaser.Scene {
       nearestEnemies: (count, from, maxDistance) => this.nearestEnemies(count, from ?? this.player, maxDistance),
       fire: (spec) => this.fireProjectile(spec),
       explode: (at, radius, damage, color) => this.explode(at, radius, damage, color),
+      stun: (enemy, seconds) => {
+        if (!enemy.boss) enemy.stunned = Math.max(enemy.stunned, seconds);
+      },
+      decoy: (at, radius, seconds) => {
+        this.decoys.push({ x: at.x, y: at.y, radius, until: this.elapsed + seconds });
+      },
     };
   }
 
@@ -467,7 +489,7 @@ export class GameScene extends Phaser.Scene {
     const hp = def.hp * bossHpMultiplier(this.elapsed);
     const enemy: Enemy = {
       sprite: this.add.image(x, y, def.texture).setDepth(DEPTH.enemy + 0.5),
-      def: stats, hp, maxHp: hp, knockX: 0, knockY: 0, flash: 0, timer: 0, dashing: 0,
+      def: stats, hp, maxHp: hp, knockX: 0, knockY: 0, flash: 0, timer: 0, dashing: 0, stunned: 0,
       boss: { def, zone },
     };
     this.enemies.push(enemy);
@@ -532,6 +554,18 @@ export class GameScene extends Phaser.Scene {
         this.allies.add('ecoTurret', 'turret', YELLOW_ECO_TURRET_SECONDS, at);
         this.floatText(at, 'YELLOW ECO TURRET!', '#ffd60a');
         break;
+      case 'weaponMod': {
+        const mod = rollWeaponMod(this.loadout, this.rng);
+        if (!mod) {
+          this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * HEALTH_PICKUP);
+          break;
+        }
+        this.weaponMods.push(mod);
+        const color = 'color' in mod.target ? COLOR_HEX[mod.target.color] : '#ffffff';
+        this.floatText(at, 'WEAPON MOD!', color);
+        this.showBanner('WEAPON MOD', describeMod(mod), color);
+        break;
+      }
     }
   }
 
@@ -824,7 +858,7 @@ export class GameScene extends Phaser.Scene {
     const hp = def.hp * hpMultiplier(this.elapsed);
     this.enemies.push({
       sprite: this.add.image(x, y, def.texture).setDepth(DEPTH.enemy),
-      def, hp, maxHp: hp, knockX: 0, knockY: 0, flash: 0, dashing: 0,
+      def, hp, maxHp: hp, knockX: 0, knockY: 0, flash: 0, dashing: 0, stunned: 0,
       // Random start so chargers and zigzaggers don't all move in sync
       timer: this.rng() * CHARGE_EVERY,
     });
@@ -854,6 +888,7 @@ export class GameScene extends Phaser.Scene {
       } else {
         this.moveEnemy(enemy, dt, decay);
       }
+      if (enemy.stunned > 0) continue;
       if (Math.hypot(this.player.x - s.x, this.player.y - s.y) < enemy.def.radius + PLAYER_RADIUS) contactDps += enemy.def.dps;
     }
 
@@ -862,8 +897,20 @@ export class GameScene extends Phaser.Scene {
 
   private moveEnemy(enemy: Enemy, dt: number, decay: number): void {
     const s = enemy.sprite;
-    const dx = this.player.x - s.x;
-    const dy = this.player.y - s.y;
+    if (enemy.stunned > 0) {
+      // Stunned: only the knockback still carries them
+      enemy.stunned -= dt;
+      s.x += enemy.knockX * dt;
+      s.y += enemy.knockY * dt;
+      enemy.knockX *= decay;
+      enemy.knockY *= decay;
+      return;
+    }
+    // A Gyro Burster decoy pulls in everything around it, except shooters who keep aiming at Jak
+    const decoy = enemy.def.behavior === 'shooter' ? undefined : this.decoys.find((d) => Math.hypot(d.x - s.x, d.y - s.y) < d.radius);
+    const target = decoy ?? this.player;
+    const dx = target.x - s.x;
+    const dy = target.y - s.y;
     const dist = Math.hypot(dx, dy) || 1;
     let dirX = dx / dist;
     let dirY = dy / dist;
@@ -1051,7 +1098,7 @@ export class GameScene extends Phaser.Scene {
   private openLevelUp(title: string, gift = false): void {
     if (gift) this.pendingGifts.shift();
     else this.pendingLevelUps--;
-    const roll = () => rollChoices(this.loadout, this.rng, this.setup.banned);
+    const roll = () => rollChoices(this.loadout, this.rng, [...this.setup.banned, ...this.lockedWeapons]);
     const choices = roll();
     if (choices.length === 0) {
       // Everything maxed: a heal instead of a choice
@@ -1141,21 +1188,24 @@ export class GameScene extends Phaser.Scene {
     const darkFill = meter(90, 0x9d4edd, 'Q');
     const ecoHint = fixed(this.add.text(160, 80, '', { ...style, fontSize: '12px', color: COLORS.accent }).setStroke('#000000', 3));
     const abilities = fixed(this.add.container(GAME_WIDTH / 2, GAME_HEIGHT - 40));
+    const synergies = fixed(this.add.text(GAME_WIDTH - 16, 70, '', { ...style, fontSize: '12px', color: '#80ffdb', align: 'right' })
+      .setOrigin(1, 0).setStroke('#000000', 3));
 
     this.hud = {
       hpFill, xpFill, level, timer, counters, loadout, boss, bossFill, bossName,
-      lightFill, darkFill, ecoHint, abilities, abilitiesKey: '',
+      lightFill, darkFill, ecoHint, synergies, abilities, abilitiesKey: '',
     };
     this.renderLoadout();
   }
 
   /** Bottom-left: one row of weapon slots, one of passive slots, with their levels. */
   private renderLoadout(): void {
+    this.hud.synergies.setText(activeSynergies(this.loadout).join('\n'));
     const box = this.hud.loadout;
     box.removeAll(true);
     (['weapon', 'passive'] as const).forEach((kind, row) => {
       const owned = ownedOfKind(this.loadout, kind);
-      for (let slot = 0; slot < 4; slot++) {
+      for (let slot = 0; slot < SLOTS[kind]; slot++) {
         const x = slot * 30;
         const y = row * 30;
         const id = owned[slot];

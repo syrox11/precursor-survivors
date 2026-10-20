@@ -13,19 +13,32 @@ A browser game in the style of *Vampire Survivors*, set in the world of *Jak and
 - **Move:** WASD or arrow keys. Attacks are automatic.
 - **Light Jak / Dark Jak:** `E` / `Q` when that eco meter is full, then `1`-`4` for its powers.
 - Defeated Lurkers drop **Precursor orbs**. Collect them to level up.
-- On every level up, pick one of three upgrades. You can carry **4 weapons and 4 passives**, each up to level 5.
+- On every level up, pick one of three upgrades. You can carry **5 weapons and 4 passives**, each up to level 5.
 
 **Weapons**
 
-| Weapon | From | What it does |
-|--------|------|--------------|
-| Spin Kick | Jak and Daxter | Jak's starting attack: hits everything around him |
-| Yellow Eco | Jak and Daxter | Eco blasts at the closest Lurkers |
-| Scatter Gun | Jak II | Short-range shotgun cone where you face |
-| Blaster | Jak II | Rapid shots at the closest Lurker, pierces from level 4 |
-| Vulcan Fury | Jak II | Bullet bursts where you face |
-| Peacemaker | Jak II | Slow orb that explodes in a big area |
-| Arc Wielder | Jak 3 | Lightning that chains between Lurkers |
+The Morph Gun weapons come in four colours, as in *Jak 3*. The ones marked 🔒 have to be unlocked in the shop before they can show up in a run.
+
+| Weapon | Colour | What it does |
+|--------|--------|--------------|
+| Spin Kick | – | Jak's starting attack: hits everything around him |
+| Yellow Eco | – | Eco blasts at the closest Lurkers |
+| Scatter Gun | 🔴 Red | Short-range shotgun cone where you face |
+| Wave Concussor 🔒 | 🔴 Red | A shockwave that sweeps across the screen: pushes back and stuns (crowd control) |
+| Plasmite RPG 🔒 | 🔴 Red | Rockets at the thickest crowd that leave burning plasma (area denial) |
+| Blaster | 🟡 Yellow | Rapid shots at the closest Lurker, pierces from level 4 |
+| Beam Reflexor 🔒 | 🟡 Yellow | Weak shots that bounce from Lurker to Lurker, one more bounce per level |
+| Gyro Burster 🔒 | 🟡 Yellow | A spinning decoy that sprays shots and pulls nearby Lurkers in |
+| Vulcan Fury | 🔵 Blue | Bullet bursts where you face |
+| Arc Wielder | 🔵 Blue | Lightning that chains between Lurkers |
+| Needle Lazer 🔒 | 🔵 Blue | Swarms of homing needles |
+| Peacemaker | ⚫ Dark | Slow orb that explodes in a big area |
+| Mass Inverter 🔒 | ⚫ Dark | Lifts Lurkers off the ground, then slams them for a share of their health |
+| Super Nova 🔒 | ⚫ Dark | Slow-charging nova that blasts everything around Jak |
+
+**Colour synergy:** carry two weapons of the same colour for a bonus to that colour, three for a bigger one. Red: more damage. Yellow: shorter cooldowns. Blue: extra projectiles (more needles, longer bursts, more chain jumps). Dark: bigger area.
+
+**Weapon mods** come out of chests: an upgrade for one of your colours (e.g. *Red weapons: +15% damage*) or for one weapon (e.g. *Blaster: -10% cooldown*). They last for the run and stack.
 
 **Passives**
 
@@ -85,7 +98,7 @@ Each map follows one game. Every 2:30 the zone changes (ground, scenery and enem
 
 Their gifts fit the character: Keira upgrades a weapon, Samos heals you and raises your max health, Torn, Sig, Ashelin and Damas fight next to you for 30 seconds, Vin raises an eco shield, the Yellow Sage wipes the screen with yellow eco, the Gambler hands out a random gift...
 
-Chests can also hold **light** or **dark eco** (fills that meter), **red eco** (more damage for a while) or **yellow eco**, which turns into a turret that keeps shooting for 15 seconds.
+Chests can also hold **light** or **dark eco** (fills that meter), **red eco** (more damage for a while), **yellow eco**, which turns into a turret that keeps shooting for 15 seconds, or a **weapon mod**.
 
 Every hit shows its damage, and wounded enemies show a health bar.
 
@@ -130,7 +143,7 @@ Progress is saved in the browser (`localStorage`), with a versioned format that 
 - [x] **Phase 4c:** the Jak 3 map, unlocked by winning the second one
 - [x] **Phase 5a:** chests, oracles, saga characters, damage numbers and health bars
 - [x] **Phase 5b:** Light Jak and Dark Jak: eco meters and activated powers; red and yellow eco
-- [ ] **Phase 5c:** more weapons
+- [x] **Phase 5c:** the rest of the Jak 3 Morph Gun (7 weapons, unlocked in the shop), colour synergies, weapon mods from chests, 5 weapon slots
 - [ ] **Phase 6:** E2E tests with Playwright on the canvas, performance checks
 
 ## Tech

@@ -52,7 +52,10 @@ export const SKINS: Record<SkinId, SkinDef> = {
   lightJak: { id: 'lightJak', name: 'Light Jak', texture: 'jak-lightJak', cost: null },
 };
 
-/** Batteries to unlock a weapon as a starting choice. Every weapon can still drop on level up. */
+/**
+ * Batteries to unlock a weapon. The original seven can always drop on level up and buying them only makes them a
+ * starting choice; the Jak 3 mods (SHOP_WEAPONS) only drop once bought.
+ */
 export const WEAPON_UNLOCK_COST: Record<WeaponId, number> = {
   spin: 0,
   yellowEco: 30,
@@ -61,6 +64,13 @@ export const WEAPON_UNLOCK_COST: Record<WeaponId, number> = {
   vulcan: 60,
   peacemaker: 80,
   arc: 80,
+  waveConcussor: 70,
+  beamReflexor: 70,
+  gyroBurster: 80,
+  needleLazer: 80,
+  plasmiteRpg: 90,
+  massInverter: 100,
+  superNova: 120,
 };
 
 export interface PowerUpDef {

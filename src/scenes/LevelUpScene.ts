@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH } from '../config';
-import { ITEMS, levelOf, type ItemId, type Loadout } from '../logic/items';
+import { COLOR_HEX, COLOR_NAMES, GUN_COLORS } from '../logic/arsenal';
+import { ITEMS, levelOf, type ItemId, type Loadout, type WeaponId } from '../logic/items';
 import { addButton } from '../ui/button';
 
 export interface LevelUpData {
@@ -88,7 +89,9 @@ export class LevelUpScene extends Phaser.Scene {
       const card = add(this.add.rectangle(x, y, cardWidth, 220, COLORS.panel, 0.95)
         .setStrokeStyle(3, def.color)
         .setInteractive({ useHandCursor: true }));
-      add(this.add.text(x, y - 98, def.kind === 'weapon' ? 'WEAPON' : 'PASSIVE', { fontFamily: FONT, fontSize: '12px', color: COLORS.text })
+      const gunColor = def.kind === 'weapon' ? GUN_COLORS[id as WeaponId] : undefined;
+      const kindLabel = def.kind === 'passive' ? 'PASSIVE' : gunColor ? `${COLOR_NAMES[gunColor].toUpperCase()} WEAPON` : 'WEAPON';
+      add(this.add.text(x, y - 98, kindLabel, { fontFamily: FONT, fontSize: '12px', color: gunColor ? COLOR_HEX[gunColor] : COLORS.text })
         .setOrigin(0.5).setAlpha(0.7));
       add(this.add.circle(x, y - 60, 22, def.color));
       add(this.add.text(x, y - 15, def.name, { fontFamily: FONT, fontSize: '22px', color: COLORS.text, fontStyle: 'bold' }).setOrigin(0.5));

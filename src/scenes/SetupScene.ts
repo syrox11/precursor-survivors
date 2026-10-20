@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage } from '../config';
 import { ITEMS, type ItemId } from '../logic/items';
+import { lockedWeapons } from '../logic/arsenal';
 import { MAP_ORDER, MAPS } from '../logic/maps';
 import { COMPANIONS, SKINS } from '../logic/meta';
 import { loadSave, writeSave, type RunSetup, type SaveData } from '../logic/save';
@@ -82,18 +83,20 @@ export class SetupScene extends Phaser.Scene {
       fontFamily: FONT, fontSize: '13px', color: COLORS.text, wordWrap: { width: 330 },
     }).setAlpha(0.75));
 
-    (Object.keys(ITEMS) as ItemId[]).forEach((id, i) => {
-      const x = left + (i % 2) * 168;
-      const y = 140 + Math.floor(i / 2) * 36;
+    // Weapons still locked in the shop never drop anyway, so they aren't listed
+    const lockedIds = lockedWeapons(this.save.weapons) as ItemId[];
+    (Object.keys(ITEMS) as ItemId[]).filter((id) => !lockedIds.includes(id)).forEach((id, i) => {
+      const x = left + (i % 3) * 114;
+      const y = 140 + Math.floor(i / 3) * 34;
       const banned = this.setup.banned.includes(id);
       const isStart = id === this.setup.weapon;
       const canToggle = !isStart && (banned || this.setup.banned.length < slots);
 
-      const chip = add(this.add.rectangle(x, y, 160, 30, banned ? 0x5c1a1a : COLORS.panel, 0.95)
+      const chip = add(this.add.rectangle(x, y, 110, 28, banned ? 0x5c1a1a : COLORS.panel, 0.95)
         .setOrigin(0)
         .setStrokeStyle(2, banned ? 0xe5383b : ITEMS[id].color, banned ? 1 : 0.6));
-      add(this.add.text(x + 10, y + 15, `${banned ? '✕ ' : ''}${ITEMS[id].name}`, {
-        fontFamily: FONT, fontSize: '14px', color: COLORS.text,
+      add(this.add.text(x + 6, y + 14, `${banned ? '✕ ' : ''}${ITEMS[id].name}`, {
+        fontFamily: FONT, fontSize: '11px', color: COLORS.text,
       }).setOrigin(0, 0.5).setAlpha(canToggle || banned ? 1 : 0.45));
       if (canToggle) {
         chip.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
