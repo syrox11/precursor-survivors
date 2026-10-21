@@ -1,11 +1,14 @@
 import * as Phaser from 'phaser';
-import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage } from '../config';
+import { audio } from '../audio/director';
+import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage, TITLE_FONT } from '../config';
 import { ITEMS, type ItemId } from '../logic/items';
 import { lockedWeapons } from '../logic/arsenal';
 import { MAP_ORDER, MAPS } from '../logic/maps';
 import { COMPANIONS, SKINS } from '../logic/meta';
 import { loadSave, writeSave, type RunSetup, type SaveData } from '../logic/save';
 import { addButton } from '../ui/button';
+import { refreshTheme } from '../ui/theme';
+import { fitCamera } from '../render';
 
 /** Pick starting weapon, companion, skin and banned items before a run. */
 export class SetupScene extends Phaser.Scene {
@@ -18,21 +21,31 @@ export class SetupScene extends Phaser.Scene {
   }
 
   create(): void {
+    fitCamera(this);
     this.save = loadSave(getStorage());
     this.setup = { ...this.save.setup, banned: [...this.save.setup.banned] };
-    this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'sand').setOrigin(0).setAlpha(0.15);
-    this.add.text(GAME_WIDTH / 2, 36, 'PREPARE YOUR RUN', { fontFamily: FONT, fontSize: '34px', color: COLORS.accent, fontStyle: 'bold' })
+    const look = refreshTheme();
+    audio.menuMusic();
+    this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, look.background).setOrigin(0).setAlpha(look.backgroundAlpha);
+    this.add.text(GAME_WIDTH / 2, 36, 'PREPARE YOUR RUN', { fontFamily: TITLE_FONT, fontSize: '34px', color: COLORS.accent, fontStyle: 'bold' })
       .setOrigin(0.5)
-      .setStroke('#3a2a10', 6);
+      .setStroke(COLORS.stroke, 6);
 
     this.content = this.add.container(0, 0);
     this.render();
 
-    addButton(this, 130, GAME_HEIGHT - 40, 'BACK', () => this.scene.start('Title'), { width: 160, color: 0x8d99ae });
+    addButton(this, 130, GAME_HEIGHT - 40, 'BACK', () => this.scene.start('Title'), { width: 160, variant: 'back', sound: 'uiBack' });
     addButton(this, GAME_WIDTH - 150, GAME_HEIGHT - 40, 'START RUN', () => this.startRun(), { width: 220 });
-    this.input.keyboard?.on('keydown-ENTER', () => this.startRun());
-    this.input.keyboard?.on('keydown-SPACE', () => this.startRun());
-    this.input.keyboard?.on('keydown-ESC', () => this.scene.start('Title'));
+    const startByKey = () => {
+      audio.ui('uiSelect');
+      this.startRun();
+    };
+    this.input.keyboard?.on('keydown-ENTER', startByKey);
+    this.input.keyboard?.on('keydown-SPACE', startByKey);
+    this.input.keyboard?.on('keydown-ESC', () => {
+      audio.ui('uiBack');
+      this.scene.start('Title');
+    });
   }
 
   private startRun(): void {
@@ -69,6 +82,9 @@ export class SetupScene extends Phaser.Scene {
     const mapNote = locked ? `Win a map to unlock the next one (${MAPS[locked].name})` : map.zones.map((z) => z.name).join(' · ');
     this.selector(add, 425, 'Map', map.name, mapNote, this.save.maps, this.setup.map, (id) => {
       this.setup.map = id;
+      // On the "auto" theme the menus take the look and music of the map: save the choice and redraw everything
+      writeSave(getStorage(), { ...this.save, setup: this.setup });
+      this.scene.restart();
     });
 
     // Right: bans
@@ -100,6 +116,7 @@ export class SetupScene extends Phaser.Scene {
       }).setOrigin(0, 0.5).setAlpha(canToggle || banned ? 1 : 0.45));
       if (canToggle) {
         chip.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+          audio.ui(banned ? 'uiBack' : 'uiSelect');
           this.setup.banned = banned ? this.setup.banned.filter((b) => b !== id) : [...this.setup.banned, id];
           this.render();
         });
@@ -133,7 +150,13 @@ export class SetupScene extends Phaser.Scene {
     };
     for (const [dx, label, delta] of [[-160, '◀', -1], [160, '▶', 1]] as const) {
       const arrow = add(this.add.text(x + dx, y + 6, label, { fontFamily: FONT, fontSize: '24px', color: COLORS.accent }).setOrigin(0.5));
-      arrow.setInteractive({ useHandCursor: true }).on('pointerdown', () => step(delta));
+      arrow.setInteractive({ useHandCursor: true })
+        .on('pointerover', () => arrow.setScale(1.25))
+        .on('pointerout', () => arrow.setScale(1))
+        .on('pointerdown', () => {
+          audio.ui('uiMove');
+          step(delta);
+        });
     }
   }
 }

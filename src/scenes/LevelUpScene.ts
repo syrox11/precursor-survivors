@@ -1,9 +1,11 @@
 import * as Phaser from 'phaser';
-import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH } from '../config';
+import { audio } from '../audio/director';
+import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, TITLE_FONT } from '../config';
 import { COLOR_HEX, COLOR_NAMES, GUN_COLORS } from '../logic/arsenal';
 import { describeUpgrade, type Bonus } from '../logic/describe';
 import { ITEMS, levelOf, type ItemId, type Loadout, type WeaponId } from '../logic/items';
 import { addButton } from '../ui/button';
+import { fitCamera } from '../render';
 
 export interface LevelUpData {
   /** Headline, e.g. "LEVEL 5!" or a character's gift. */
@@ -33,6 +35,7 @@ export class LevelUpScene extends Phaser.Scene {
   }
 
   create(data: LevelUpData): void {
+    fitCamera(this);
     this.data_ = data;
     this.choices = data.choices;
     this.rerollsLeft = data.rerollsLeft;
@@ -40,9 +43,10 @@ export class LevelUpScene extends Phaser.Scene {
 
     const cx = GAME_WIDTH / 2;
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6).setOrigin(0);
-    this.add.text(cx, 80, data.title, { fontFamily: FONT, fontSize: '40px', color: COLORS.accent, fontStyle: 'bold' })
+    audio.sfx('levelUp');
+    this.add.text(cx, 80, data.title, { fontFamily: TITLE_FONT, fontSize: '40px', color: COLORS.accent, fontStyle: 'bold' })
       .setOrigin(0.5)
-      .setStroke('#3a2a10', 6);
+      .setStroke(COLORS.stroke, 6);
     this.add.text(cx, 125, 'Choose an upgrade', { fontFamily: FONT, fontSize: '18px', color: COLORS.text }).setOrigin(0.5);
 
     this.cards = this.add.container(0, 0);
@@ -61,12 +65,14 @@ export class LevelUpScene extends Phaser.Scene {
   private choose(id: ItemId): void {
     if (this.chosen) return;
     this.chosen = true;
+    audio.ui('uiSelect');
     this.data_.onChoose(id);
   }
 
   private reroll(): void {
     if (this.chosen || this.rerollsLeft <= 0) return;
     this.rerollsLeft--;
+    audio.ui('uiOpen');
     this.choices = this.data_.onReroll();
     this.renderCards();
   }
@@ -105,14 +111,17 @@ export class LevelUpScene extends Phaser.Scene {
       }).setOrigin(0.5));
       add(this.add.text(x, y + 95, `[${i + 1}]`, { fontFamily: FONT, fontSize: '13px', color: COLORS.text }).setOrigin(0.5).setAlpha(0.6));
 
-      card.on('pointerover', () => card.setFillStyle(0x1f3a40, 0.95));
+      card.on('pointerover', () => {
+        card.setFillStyle(COLORS.panelHover, 0.95);
+        audio.ui('uiMove');
+      });
       card.on('pointerout', () => card.setFillStyle(COLORS.panel, 0.95));
       card.on('pointerdown', () => this.choose(id));
     });
 
     if (this.rerollsLeft > 0) {
       add(addButton(this, cx, 455, `REROLL [R]  (${this.rerollsLeft} left)`, () => this.reroll(), {
-        width: 280, height: 40, fontSize: 17, color: 0x4cc9f0,
+        width: 280, height: 40, fontSize: 17, variant: 'secondary', sound: 'uiOpen',
       }).container);
     }
   }

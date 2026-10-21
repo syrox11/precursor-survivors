@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { groundTexture, MAPS, type GroundStyle } from '../logic/maps';
 import type { SkinId } from '../logic/meta';
 import type { NpcId } from '../logic/npcs';
+import { fitCamera } from '../render';
 
 interface JakLook {
   skin: number;
@@ -117,6 +118,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
+    fitCamera(this);
     for (const [skin, look] of Object.entries(JAK_LOOKS)) {
       this.texture(`jak-${skin}`, 32, 40, (g) => drawJak(g, look));
     }
@@ -650,5 +652,7 @@ export class BootScene extends Phaser.Scene {
     draw(g);
     g.generateTexture(key, width, height);
     g.destroy();
+    // These placeholders are drawn at 1x and zoomed by the render scale: hard pixels read sharper than a blur
+    this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
   }
 }

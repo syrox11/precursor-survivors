@@ -18,7 +18,8 @@ test.describe('stability', () => {
 
   // Regression: uncollected orbs piled up by the thousand and slowed the game to a crawl
   test('orbs on the ground stay capped however many enemies die', async ({ game }) => {
-    await game.startRun({ god: true, endless: true, map: 'jak3', items: STRESS_BUILD });
+    // PERF_RES=2 measures the sharper canvas; the bar is set for the default 1x
+    await game.startRun({ god: true, endless: true, map: 'jak3', items: STRESS_BUILD, res: Number(process.env.PERF_RES ?? 1) });
 
     const s = await game.play(30);
     expect(s.kills).toBeGreaterThan(300);

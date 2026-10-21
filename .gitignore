@@ -4,3 +4,9 @@ dist/
 .claude/
 test-results/
 playwright-report/
+
+# Original game audio ripped from your own copy: local testing only, never commit or deploy
+public/audio-local/
+
+# Ottselesque (chriskirknielsen.com/fonts/ottselesque): personal use only, no redistribution without permission
+public/fonts-local/

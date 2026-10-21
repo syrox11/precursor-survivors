@@ -14,6 +14,8 @@ export interface RunOptions {
   eco?: number;
   endless?: boolean;
   unlockAll?: boolean;
+  /** Canvas pixels per game pixel. 1 unless a test asks for more. */
+  res?: number;
 }
 
 const LEVEL_UP_GRACE_MS = 450;
@@ -34,6 +36,9 @@ export class GamePage {
     if (options.t !== undefined) params.set('t', String(options.t));
     if (options.map) params.set('map', options.map);
     if (options.eco !== undefined) params.set('eco', String(options.eco));
+    // Pinned: the browser reports a 1920x1080 screen here, which would otherwise pick 2x and make every
+    // run (and the @perf measure) depend on the machine's screen instead of the test
+    params.set('res', String(options.res ?? 1));
     if (options.items) params.set('items', Object.entries(options.items).map(([id, level]) => `${id}:${level}`).join(','));
     for (const flag of ['god', 'endless', 'unlockAll'] as const) if (options[flag]) params.set(flag, '');
     await this.page.goto(`./?${params.toString().replace(/=(&|$)/g, '$1')}`);
@@ -49,6 +54,11 @@ export class GamePage {
 
   async readSave(): Promise<Record<string, any>> {
     return JSON.parse((await this.page.evaluate(() => localStorage.getItem('precursor-survivors:save'))) ?? '{}');
+  }
+
+  /** Volumes and theme from the Options screen, stored apart from the save. */
+  async readSettings(): Promise<Record<string, any>> {
+    return JSON.parse((await this.page.evaluate(() => localStorage.getItem('precursor-survivors:settings'))) ?? '{}');
   }
 
   /** Title -> run setup -> run, with the keyboard. */

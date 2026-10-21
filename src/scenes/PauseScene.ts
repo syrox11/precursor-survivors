@@ -1,10 +1,12 @@
 import * as Phaser from 'phaser';
-import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH } from '../config';
+import { audio } from '../audio/director';
+import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, TITLE_FONT } from '../config';
 import { describeMod, weaponModifiers, type WeaponMod } from '../logic/arsenal';
 import { describeItem, weaponBonus } from '../logic/describe';
 import { ITEMS, ownedOfKind, SLOTS, type ItemId, type Loadout, type WeaponId } from '../logic/items';
 import type { PlayerStats } from '../logic/stats';
 import { addButton } from '../ui/button';
+import { fitCamera } from '../render';
 
 export interface PauseData {
   /** One line about the run: map zone, level, time, kills. */
@@ -32,9 +34,12 @@ export class PauseScene extends Phaser.Scene {
   }
 
   create(data: PauseData): void {
+    fitCamera(this);
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.78).setOrigin(0);
-    this.add.text(GAME_WIDTH / 2, 34, 'PAUSED', { fontFamily: FONT, fontSize: '36px', color: COLORS.accent, fontStyle: 'bold' })
-      .setOrigin(0.5).setStroke('#3a2a10', 6);
+    audio.duck(true);
+    this.events.once('shutdown', () => audio.duck(false));
+    this.add.text(GAME_WIDTH / 2, 34, 'PAUSED', { fontFamily: TITLE_FONT, fontSize: '36px', color: COLORS.accent, fontStyle: 'bold' })
+      .setOrigin(0.5).setStroke(COLORS.stroke, 6);
     this.add.text(GAME_WIDTH / 2, 68, data.headline, { fontFamily: FONT, fontSize: '15px', color: COLORS.text }).setOrigin(0.5).setAlpha(0.85);
 
     this.renderBuild(data);
@@ -42,8 +47,12 @@ export class PauseScene extends Phaser.Scene {
     this.renderLists(data);
     this.createTooltip();
 
-    addButton(this, GAME_WIDTH / 2 - 120, GAME_HEIGHT - 40, 'RESUME', () => data.onResume(), { width: 200 });
-    addButton(this, GAME_WIDTH / 2 + 120, GAME_HEIGHT - 40, 'QUIT RUN', () => data.onQuit(), { width: 200, color: 0xe5383b });
+    addButton(this, GAME_WIDTH / 2 - 220, GAME_HEIGHT - 40, 'RESUME', () => data.onResume(), { width: 190 });
+    addButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 40, 'OPTIONS', () => {
+      this.scene.pause();
+      this.scene.launch('Options', { from: 'Pause' });
+    }, { width: 190, variant: 'back', sound: 'uiOpen' });
+    addButton(this, GAME_WIDTH / 2 + 220, GAME_HEIGHT - 40, 'QUIT RUN', () => data.onQuit(), { width: 190, variant: 'danger', sound: 'uiBack' });
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 76, 'ESC / P to resume  ·  hover an item for details', {
       fontFamily: FONT, fontSize: '12px', color: COLORS.text,
     }).setOrigin(0.5).setAlpha(0.6);
@@ -141,7 +150,8 @@ export class PauseScene extends Phaser.Scene {
   }
 
   private createTooltip(): void {
-    this.tooltipBox = this.add.rectangle(0, 0, 10, 10, COLORS.panel, 0.97).setOrigin(0).setStrokeStyle(2, 0xffb703);
+    this.tooltipBox = this.add.rectangle(0, 0, 10, 10, COLORS.panel, 0.97).setOrigin(0)
+      .setStrokeStyle(2, Phaser.Display.Color.HexStringToColor(COLORS.accent).color);
     this.tooltipText = this.add.text(10, 8, '', {
       fontFamily: FONT, fontSize: '13px', color: COLORS.text, lineSpacing: 4, wordWrap: { width: 300 },
     });
@@ -160,8 +170,9 @@ export class PauseScene extends Phaser.Scene {
     const w = this.tooltipBox.width;
     const h = this.tooltipBox.height;
     this.tooltip.setPosition(
-      Math.min(pointer.x + 16, GAME_WIDTH - w - 8),
-      Math.min(pointer.y + 16, GAME_HEIGHT - h - 8),
+      // World coordinates: the camera is zoomed to the render scale, so screen pixels don't match the layout
+      Math.min(pointer.worldX + 16, GAME_WIDTH - w - 8),
+      Math.min(pointer.worldY + 16, GAME_HEIGHT - h - 8),
     );
   }
 }

@@ -4,6 +4,8 @@ import type { Combat, Enemy, Point } from './types';
 
 export interface Weapon {
   update(dt: number, level: number, combat: Combat, mods: WeaponMods): void;
+  /** Called each time it fires, e.g. to play its sound. */
+  onFire?: () => void;
 }
 
 export const FX_DEPTH = 6;
@@ -21,6 +23,7 @@ export const alive = (c: Combat, enemy: Enemy) => c.enemies.includes(enemy);
 export abstract class CooldownWeapon implements Weapon {
   private timer = 0;
   protected mods: WeaponMods = NEUTRAL_MODS;
+  onFire?: () => void;
 
   update(dt: number, level: number, c: Combat, mods: WeaponMods): void {
     this.mods = mods;
@@ -28,6 +31,7 @@ export abstract class CooldownWeapon implements Weapon {
     this.timer -= dt;
     if (this.timer > 0) return;
     if (this.trigger(level, c)) {
+      this.onFire?.();
       this.timer = effectiveCooldown(this.baseCooldown(level), c.stats.cooldownMultiplier * mods.cooldown);
     }
   }
