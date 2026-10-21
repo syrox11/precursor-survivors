@@ -1,7 +1,7 @@
 import { expect, test } from './support/fixtures';
 
 /** Canvas coordinates of menu controls (the viewport matches the 960x540 game). */
-const TITLE_SHOP = { x: 595, y: 385 };
+const TITLE_SHOP = { x: 480, y: 385 };
 const SHOP_TAB_COMPANIONS = { x: 661, y: 100 };
 const SHOP_ROW_BUY = (row: number) => ({ x: 850, y: 140 + row * 40 + 18 });
 

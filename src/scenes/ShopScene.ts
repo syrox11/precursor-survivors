@@ -1,10 +1,13 @@
 import * as Phaser from 'phaser';
-import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage } from '../config';
+import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage, TITLE_FONT } from '../config';
 import { COLOR_NAMES, GUN_COLORS, SHOP_WEAPONS } from '../logic/arsenal';
 import { ITEMS, type WeaponId } from '../logic/items';
 import { CHALLENGES, COMPANIONS, POWER_UPS, SKINS, WEAPON_UNLOCK_COST, type PowerUpId, type SkinId } from '../logic/meta';
 import { buy, loadSave, priceOf, writeSave, type Purchase, type SaveData } from '../logic/save';
 import { addButton } from '../ui/button';
+import { refreshTheme } from '../ui/theme';
+import { audio } from '../audio/director';
+import { fitCamera } from '../render';
 
 type Tab = 'powerUps' | 'weapons' | 'morphGun' | 'companions' | 'skins';
 
@@ -24,6 +27,25 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'skins', label: 'Skins' },
 ];
 
+/** Room for a row's description: from its column to just before the price button. */
+const DESCRIPTION_WIDTH = 440;
+
+/**
+ * Descriptions sit between the name and the price button, and fonts differ in width between themes. The
+ * whole tab shrinks a little when one doesn't fit, so rows stay the same size; past that, long ones wrap
+ * onto two lines inside their row.
+ */
+function fitDescriptions(labels: Phaser.GameObjects.Text[]): void {
+  const widest = () => Math.max(0, ...labels.map((label) => label.width));
+  for (const size of [13, 12]) {
+    if (widest() <= DESCRIPTION_WIDTH) return;
+    for (const label of labels) label.setFontSize(size);
+  }
+  for (const label of labels) {
+    if (label.width > DESCRIPTION_WIDTH) label.setWordWrapWidth(DESCRIPTION_WIDTH).setLineSpacing(-2);
+  }
+}
+
 export class ShopScene extends Phaser.Scene {
   private save!: SaveData;
   private tab: Tab = 'powerUps';
@@ -34,12 +56,18 @@ export class ShopScene extends Phaser.Scene {
   }
 
   create(): void {
+    fitCamera(this);
     this.save = loadSave(getStorage());
-    this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, 'sand').setOrigin(0).setAlpha(0.15);
+    const look = refreshTheme();
+    audio.menuMusic();
+    this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, look.background).setOrigin(0).setAlpha(look.backgroundAlpha);
     this.content = this.add.container(0, 0);
     this.render();
-    addButton(this, 110, GAME_HEIGHT - 36, 'BACK', () => this.scene.start('Title'), { width: 160, color: 0x8d99ae });
-    this.input.keyboard?.on('keydown-ESC', () => this.scene.start('Title'));
+    addButton(this, 110, GAME_HEIGHT - 36, 'BACK', () => this.scene.start('Title'), { width: 160, variant: 'back', sound: 'uiBack' });
+    this.input.keyboard?.on('keydown-ESC', () => {
+      audio.ui('uiBack');
+      this.scene.start('Title');
+    });
   }
 
   private rows(): Row[] {
@@ -97,8 +125,8 @@ export class ShopScene extends Phaser.Scene {
       return obj;
     };
 
-    add(this.add.text(40, 26, 'SHOP', { fontFamily: FONT, fontSize: '34px', color: COLORS.accent, fontStyle: 'bold' })
-      .setStroke('#3a2a10', 6));
+    add(this.add.text(40, 26, 'SHOP', { fontFamily: TITLE_FONT, fontSize: '34px', color: COLORS.accent, fontStyle: 'bold' })
+      .setStroke(COLORS.stroke, 6));
     add(this.add.text(GAME_WIDTH - 40, 34, `Precursor batteries: ${this.save.batteries}`, {
       fontFamily: FONT, fontSize: '20px', color: COLORS.accent, fontStyle: 'bold',
     }).setOrigin(1, 0));
@@ -108,16 +136,17 @@ export class ShopScene extends Phaser.Scene {
       add(addButton(this, 115 + i * 182, 100, tab.label, () => {
         this.tab = tab.id;
         this.render();
-      }, { width: 170, height: 36, fontSize: 16, color: active ? 0xffb703 : 0x4a5a60 }).container);
+      }, { width: 170, height: 36, fontSize: 16, variant: active ? 'primary' : 'back', selected: active, sound: 'uiMove' }).container);
     });
 
+    const descriptions: Phaser.GameObjects.Text[] = [];
     this.rows().forEach((row, i) => {
       const y = 140 + i * 40;
       add(this.add.rectangle(40, y, GAME_WIDTH - 80, 36, COLORS.panel, 0.85).setOrigin(0));
       add(this.add.text(56, y + 18, row.name, { fontFamily: FONT, fontSize: '17px', color: COLORS.text, fontStyle: 'bold' })
         .setOrigin(0, 0.5));
-      add(this.add.text(330, y + 18, row.description, { fontFamily: FONT, fontSize: '14px', color: COLORS.text })
-        .setOrigin(0, 0.5).setAlpha(0.8));
+      descriptions.push(add(this.add.text(330, y + 18, row.description, { fontFamily: FONT, fontSize: '14px', color: COLORS.text })
+        .setOrigin(0, 0.5).setAlpha(0.8)));
 
       const price = priceOf(this.save, row.purchase);
       if (row.status || price === null) {
@@ -127,9 +156,10 @@ export class ShopScene extends Phaser.Scene {
         return;
       }
       add(addButton(this, GAME_WIDTH - 110, y + 18, `${price} ⚡`, () => this.purchase(row.purchase), {
-        width: 120, height: 30, fontSize: 15, disabled: price > this.save.batteries,
+        width: 120, height: 30, fontSize: 15, disabled: price > this.save.batteries, sound: 'uiBuy',
       }).container);
     });
+    fitDescriptions(descriptions);
   }
 
   private purchase(purchase: Purchase): void {

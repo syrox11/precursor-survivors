@@ -23,6 +23,8 @@ export interface DebugSnapshot {
   timers: { label: string; left: number }[];
   /** Power Cell earned and endless mode running. */
   victory: boolean;
+  /** Track the audio director is playing, when a local audio pack is installed. */
+  music: string | null;
   /** Circle game objects alive in the scene. A steady climb means effects are leaking. */
   circles: number;
   /** Every game object in the scene. */
@@ -36,6 +38,7 @@ declare global {
     __precursor?: { snapshot(): DebugSnapshot };
     /** Keys of the scenes running right now, e.g. ['Title'] or ['Game', 'Pause']. Debug only. */
     __precursorScenes?: () => string[];
+    __precursorTopScene?: () => string | undefined;
   }
 }
 

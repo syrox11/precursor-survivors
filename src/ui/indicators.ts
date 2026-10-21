@@ -14,8 +14,10 @@ const SIZE = 12;
 export class Indicators {
   private graphics: Phaser.GameObjects.Graphics;
 
-  constructor(scene: Phaser.Scene, depth: number) {
-    this.graphics = scene.add.graphics().setScrollFactor(0).setDepth(depth);
+  /** `layer` is the screen-fixed container the arrows are drawn in. */
+  constructor(layer: Phaser.GameObjects.Container) {
+    this.graphics = layer.scene.add.graphics();
+    layer.add(this.graphics);
   }
 
   update(camera: Phaser.Cameras.Scene2D.Camera, targets: readonly IndicatorTarget[]): void {
@@ -26,8 +28,8 @@ export class Indicators {
     const halfW = (BOX.right - BOX.left) / 2;
     const halfH = (BOX.bottom - BOX.top) / 2;
     for (const target of targets) {
-      const sx = target.x - camera.scrollX;
-      const sy = target.y - camera.scrollY;
+      const sx = target.x - camera.worldView.x;
+      const sy = target.y - camera.worldView.y;
       if (sx > 0 && sx < GAME_WIDTH && sy > 0 && sy < GAME_HEIGHT) continue;
 
       // Walk from the box centre towards the target until hitting the box edge

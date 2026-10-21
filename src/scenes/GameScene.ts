@@ -1,11 +1,12 @@
 import * as Phaser from 'phaser';
+import { audio, type MusicMood, type SfxKey } from '../audio/director';
 import { createBossAI, type BossAI, type BossContext } from '../combat/bosses';
 import { createCompanion, type Companion, type CompanionContext } from '../combat/companions';
 import { Allies } from '../combat/allies';
 import { HostileSystem } from '../combat/hostiles';
 import { createWeapon, type Weapon } from '../combat/weapons';
 import type { Combat, Enemy, EnemyStats, Point, ProjectileSpec } from '../combat/types';
-import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage, PLAYER_RADIUS, RUN_DURATION, WORLD_SIZE } from '../config';
+import { COLORS, FONT, GAME_HEIGHT, GAME_WIDTH, getStorage, PLAYER_RADIUS, RUN_DURATION, TITLE_FONT, WORLD_SIZE } from '../config';
 import { debugEco, debugEnabled, debugEndless, debugGodMode, debugLoadout, debugMap, debugStartTime, exposeDebug } from '../debug';
 import {
   applyItem, ITEMS, levelOf, ownedOfKind, rollChoices, SLOTS, STARTING_LOADOUT, startingLoadout,
@@ -33,7 +34,7 @@ import {
 import { darkBlastTick, darkBomb, darkStrike } from '../combat/darkPowers';
 import { describeGift, gambleGift, type Gift, type NpcDef } from '../logic/npcs';
 import {
-  activeSynergies, COLOR_HEX, describeMod, lockedWeapons, rollWeaponMod, weaponModifiers, type WeaponMod,
+  activeSynergies, COLOR_HEX, describeMod, GUN_COLORS, lockedWeapons, rollWeaponMod, weaponModifiers, type GunColor, type WeaponMod,
 } from '../logic/arsenal';
 import {
   HEALTH_PICKUP, JET_BOARD, RED_ECO, rollEnemyDrop, YELLOW_ECO_TURRET_SECONDS, type ChestContent,
@@ -44,6 +45,7 @@ import { Field } from '../world/field';
 import type { RunResult } from './GameOverScene';
 import type { LevelUpData } from './LevelUpScene';
 import type { PauseData } from './PauseScene';
+import { fitCamera, fixedLayerOffset } from '../render';
 
 interface Orb {
   sprite: Phaser.GameObjects.Image;
@@ -101,6 +103,20 @@ const TIMER_COLORS: Record<TimerKey | 'ally', number> = {
 
 const DEPTH = { decor: 1, orb: 2, enemy: 3, player: 4, companion: 5, fx: 6, hud: 100 };
 
+const SHOT_SOUNDS: Record<GunColor, SfxKey> = { yellow: 'shotYellow', red: 'shotRed', blue: 'shotBlue', dark: 'shotDark' };
+
+/** Morph Gun weapons sound like their colour of gun; Yellow Eco is a yellow blast and the rest are melee. */
+function weaponSound(id: WeaponId): SfxKey {
+  const color = GUN_COLORS[id];
+  if (color) return SHOT_SOUNDS[color];
+  return id === 'yellowEco' ? 'shotYellow' : 'melee';
+}
+
+const CHEST_SOUNDS: Record<ChestContent, SfxKey> = {
+  health: 'heal', magnet: 'ecoBlue', jetBoard: 'battery', lightEco: 'ecoGreen', darkEco: 'ecoGreen',
+  redEco: 'ecoRed', yellowEco: 'ecoYellow', weaponMod: 'chest',
+};
+
 export class GameScene extends Phaser.Scene {
   private rng!: Rng;
   private keys!: Record<'W' | 'A' | 'S' | 'D' | 'UP' | 'DOWN' | 'LEFT' | 'RIGHT', Phaser.Input.Keyboard.Key>;
@@ -128,6 +144,8 @@ export class GameScene extends Phaser.Scene {
   private combat!: Combat;
   private hostiles!: HostileSystem;
   private bossContext!: BossContext;
+  /** Everything fixed to the screen: HUD, banners, edge arrows. */
+  private hudLayer!: Phaser.GameObjects.Container;
   private bossAI = new Map<Enemy, BossAI>();
   private spawnedBosses = new Set<number>();
   private bossesDefeated = 0;
@@ -215,6 +233,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    fitCamera(this);
     const search = window.location.search;
     const seed = seedFromQuery(search) ?? Math.floor(Math.random() * 2 ** 32);
     this.rng = createRng(seed);
@@ -244,7 +263,9 @@ export class GameScene extends Phaser.Scene {
       this.eco = { light: eco, dark: eco, active: null };
     }
 
-    this.ground = this.add.tileSprite(0, 0, GAME_WIDTH, GAME_HEIGHT, groundTexture(this.map.id, this.zone))
+    // Things fixed to the screen are shifted to make up for the camera zoom (see render.ts)
+    const fixedAt = fixedLayerOffset();
+    this.ground = this.add.tileSprite(fixedAt.x, fixedAt.y, GAME_WIDTH, GAME_HEIGHT, groundTexture(this.map.id, this.zone))
       .setOrigin(0)
       .setScrollFactor(0);
     this.scatterDecor();
@@ -272,12 +293,13 @@ export class GameScene extends Phaser.Scene {
     this.bossContext = this.createBossContext();
     this.hostiles = new HostileSystem(this, (damage) => this.hurt(damage * this.enemyDamageMultiplier()));
     this.syncWeapons();
+    this.hudLayer = this.add.container(fixedAt.x, fixedAt.y).setScrollFactor(0).setDepth(DEPTH.hud);
     this.createHud();
     this.showZoneBanner();
 
     this.allies = new Allies(this);
     this.damageNumbers = new DamageNumbers(this);
-    this.indicators = new Indicators(this, DEPTH.hud);
+    this.indicators = new Indicators(this.hudLayer);
     this.healthBars = this.add.graphics().setDepth(DEPTH.enemy + 0.6);
     this.jetBoard = this.add.image(center, center, 'jetBoardRide').setDepth(DEPTH.player - 0.1).setVisible(false);
     this.shieldBubble = this.add.circle(center, center, 28, 0x80ffdb, 0.2)
@@ -287,6 +309,7 @@ export class GameScene extends Phaser.Scene {
     this.field = new Field(this, this.rng, this.map, {
       onPickup: (content, at) => this.openChest(content, at),
       onOracle: (at) => {
+        audio.sfx('oracle');
         this.giveLevels(1);
         this.floatText(at, '+1 LEVEL', '#80ffdb');
         this.showBanner('PRECURSOR ORACLE', '"The path ahead grows clearer..."', '#80ffdb');
@@ -312,12 +335,13 @@ export class GameScene extends Phaser.Scene {
         eco: { ...this.eco },
         timers: this.runningTimers().map((t) => ({ label: t.label, left: t.left })),
         victory: this.victory,
+        music: audio.nowPlaying ?? null,
         circles: this.children.list.filter((o) => o.type === 'Arc').length,
         objects: this.children.length,
         // A level-up counts from the moment it is owed: the scene pause behind the card screen only
         // takes effect next frame, and in between the run would look "playing" with the card still unpicked
         state: this.ended ? 'over'
-          : this.scene.isActive('Pause') ? 'paused'
+          : this.scene.isActive('Pause') || this.scene.isActive('Options') ? 'paused'
           : this.scene.isPaused() || this.pendingLevelUps > 0 || this.pendingGifts.length > 0 ? 'levelUp'
           : 'playing',
       }));
@@ -362,6 +386,7 @@ export class GameScene extends Phaser.Scene {
     this.drawHealthBars();
     this.indicators.update(this.cameras.main, this.field.targets());
 
+    audio.runMusic(this.map.id, this.zone, this.musicMood());
     if (this.hp <= 0) return this.endRun(this.victory);
     // The Power Cell needs both: the full run time and the final boss down. Then the run goes on until Jak falls.
     if (!this.victory && this.elapsed >= RUN_DURATION && this.finalBossDefeated) this.claimPowerCell();
@@ -496,7 +521,11 @@ export class GameScene extends Phaser.Scene {
   /** Creates a runtime weapon for every weapon in the loadout that doesn't have one yet. */
   private syncWeapons(): void {
     for (const id of ownedOfKind(this.loadout, 'weapon') as WeaponId[]) {
-      if (!this.weapons.has(id)) this.weapons.set(id, createWeapon(id));
+      if (this.weapons.has(id)) continue;
+      const weapon = createWeapon(id);
+      const sound = weaponSound(id);
+      weapon.onFire = () => audio.sfx(sound);
+      this.weapons.set(id, weapon);
     }
   }
 
@@ -532,13 +561,14 @@ export class GameScene extends Phaser.Scene {
   private showBanner(title: string, subtitle: string | undefined, color: string): void {
     this.banner?.destroy();
     const items: Phaser.GameObjects.GameObject[] = [
-      this.add.text(0, 0, title, { fontFamily: FONT, fontSize: '34px', color, fontStyle: 'bold' }).setOrigin(0.5).setStroke('#1a1a1a', 6),
+      this.add.text(0, 0, title, { fontFamily: TITLE_FONT, fontSize: '34px', color, fontStyle: 'bold' }).setOrigin(0.5).setStroke('#1a1a1a', 6),
     ];
     if (subtitle) {
       items.push(this.add.text(0, 36, subtitle, { fontFamily: FONT, fontSize: '17px', color: COLORS.text, fontStyle: 'italic' })
         .setOrigin(0.5).setStroke('#1a1a1a', 4));
     }
-    const banner = this.add.container(GAME_WIDTH / 2, 150, items).setScrollFactor(0).setDepth(DEPTH.hud);
+    const banner = this.add.container(GAME_WIDTH / 2, 150, items);
+    this.hudLayer.add(banner);
     this.banner = banner;
     this.tweens.add({
       targets: banner, alpha: 0, delay: 2500, duration: 600,
@@ -575,6 +605,7 @@ export class GameScene extends Phaser.Scene {
     this.enemies.push(enemy);
     this.bossAI.set(enemy, createBossAI(def.id));
     this.cameras.main.shake(400, 0.006);
+    audio.sfx('bossSpawn');
     this.showBanner(`BOSS: ${def.name.toUpperCase()}`, undefined, '#ff6b6b');
   }
 
@@ -633,6 +664,12 @@ export class GameScene extends Phaser.Scene {
     return effects;
   }
 
+  /** Dark Jak gets his own version of the zone track, and a boss on the field its fight version. */
+  private musicMood(): MusicMood {
+    if (this.eco.active === 'dark') return 'dark';
+    return this.bossAI.size > 0 ? 'boss' : 'base';
+  }
+
   /** Seconds of endless mode so far; 0 before the Power Cell. */
   private sinceVictory(): number {
     return this.victory ? this.elapsed - this.victoryAt : 0;
@@ -648,6 +685,7 @@ export class GameScene extends Phaser.Scene {
     this.field.startEndless(this.elapsed);
     this.nextEndlessBossAt = this.elapsed + ENDLESS_BOSS_EVERY;
     this.cameras.main.flash(600, 255, 183, 3);
+    audio.sfx('victory');
     this.showBanner('POWER CELL ACQUIRED!', 'Endless mode: survive as long as you can', COLORS.accent);
   }
 
@@ -673,6 +711,7 @@ export class GameScene extends Phaser.Scene {
       this.dropWisp(i % 2 ? 'light' : 'dark', { x: enemy.sprite.x + Math.cos(angle) * 50, y: enemy.sprite.y + Math.sin(angle) * 50 });
     }
     this.cameras.main.shake(300, 0.008);
+    audio.sfx('bossDown');
     this.field.dropChest({ x: enemy.sprite.x, y: enemy.sprite.y });
     this.showBanner(`${boss.def.name.toUpperCase()} DEFEATED!`, undefined, COLORS.accent);
   }
@@ -680,6 +719,7 @@ export class GameScene extends Phaser.Scene {
   // ---- Chests, oracles and characters ----
 
   private openChest(content: ChestContent, at: Point): void {
+    audio.sfx(CHEST_SOUNDS[content]);
     switch (content) {
       case 'health':
         this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.maxHp * HEALTH_PICKUP);
@@ -783,6 +823,7 @@ export class GameScene extends Phaser.Scene {
     const texture = mode === 'light' ? SKINS.lightJak.texture : mode === 'dark' ? SKINS.darkJak.texture : SKINS[this.setup.skin].texture;
     this.player.setTexture(texture);
     if (mode) {
+      audio.sfx(mode === 'light' ? 'lightOn' : 'darkOn');
       this.cameras.main.flash(250, mode === 'light' ? 144 : 123, mode === 'light' ? 224 : 44, mode === 'light' ? 239 : 191);
       this.showBanner(mode === 'light' ? 'LIGHT JAK' : 'DARK JAK', 'Abilities: keys 1 - 4', mode === 'light' ? '#90e0ef' : '#c77dff');
     }
@@ -812,6 +853,7 @@ export class GameScene extends Phaser.Scene {
         this.startTimer('speed', `Light Flight: +${Math.round((t.wingsSpeed - 1) * 100)}% speed`, t.wingsSeconds);
         break;
       case 'darkBomb':
+        audio.sfx('darkBomb');
         darkBomb(this.combat, this.player, this.darkPowerScale());
         this.setForm(null);
         break;
@@ -834,6 +876,7 @@ export class GameScene extends Phaser.Scene {
 
   private meetNpc(npc: NpcDef, at: Point): void {
     const gift = npc.gift.kind === 'random' ? gambleGift(this.map.id, this.rng) : npc.gift;
+    audio.sfx('battery');
     this.applyGift(gift, npc, at);
     this.showBanner(npc.name.toUpperCase(), `"${npc.line}"  ${describeGift(gift)}`, '#ffb703');
   }
@@ -963,9 +1006,10 @@ export class GameScene extends Phaser.Scene {
     this.speech?.setPosition(this.companionSprite.x, this.companionSprite.y - 22);
     this.jetBoard.setPosition(this.player.x, this.player.y + 20);
 
-    const cam = this.cameras.main;
-    this.ground.tilePositionX = cam.scrollX;
-    this.ground.tilePositionY = cam.scrollY;
+    // The ground is fixed to the screen and scrolls its pattern with what the camera shows
+    const view = this.cameras.main.worldView;
+    this.ground.tilePositionX = view.x;
+    this.ground.tilePositionY = view.y;
 
     if (this.hurtFlash > 0) {
       this.hurtFlash -= dt;
@@ -978,6 +1022,7 @@ export class GameScene extends Phaser.Scene {
     if (this.godMode || this.elapsed < this.buffs.invulnerableUntil || this.elapsed < this.invisibleUntil) return;
     const taken = this.companion.absorb(amount * (1 - this.stats.armor), this.companionContext);
     this.hp -= taken;
+    if (taken > 0) audio.sfx('hurt');
     if (taken > 0 && this.hurtFlash <= 0) {
       this.player.setTint(0xff5555);
       this.hurtFlash = 0.12;
@@ -1184,6 +1229,7 @@ export class GameScene extends Phaser.Scene {
 
   private explode(at: Point, radius: number, damage: number, color: number): void {
     const { x, y } = at;
+    audio.sfx('explosion');
     // Past a handful of explosions on screen more circles add nothing visible but still cost frames
     if (this.explosionFx < MAX_EXPLOSION_FX) {
       this.explosionFx++;
@@ -1221,6 +1267,7 @@ export class GameScene extends Phaser.Scene {
 
     this.enemies.splice(this.enemies.indexOf(enemy), 1);
     this.kills++;
+    audio.sfx('enemyDie');
     if (enemy.boss) this.defeatBoss(enemy);
     const { x, y } = enemy.sprite;
     enemy.sprite.destroy();
@@ -1282,8 +1329,10 @@ export class GameScene extends Phaser.Scene {
       if (dist < PLAYER_RADIUS + 6) {
         orb.sprite.destroy();
         this.orbs.splice(i, 1);
-        if (orb.kind === 'xp') this.collectOrb(orb.value);
-        else this.eco = addEco(this.eco, orb.kind, orb.value);
+        if (orb.kind === 'xp') {
+          this.collectOrb(orb.value);
+          audio.sfx('orb');
+        } else this.eco = addEco(this.eco, orb.kind, orb.value);
         continue;
       }
       const step = Math.min(dist, ORB_SPEED * dt);
@@ -1366,8 +1415,10 @@ export class GameScene extends Phaser.Scene {
   // ---- HUD ----
 
   private createHud(): void {
-    const fixed = <T extends Phaser.GameObjects.Components.ScrollFactor & Phaser.GameObjects.Components.Depth>(obj: T) =>
-      obj.setScrollFactor(0).setDepth(DEPTH.hud);
+    const fixed = <T extends Phaser.GameObjects.GameObject>(obj: T) => {
+      this.hudLayer.add(obj);
+      return obj;
+    };
 
     fixed(this.add.rectangle(0, 0, GAME_WIDTH, 10, COLORS.xpBack).setOrigin(0));
     const xpFill = fixed(this.add.rectangle(0, 0, GAME_WIDTH, 10, COLORS.xp).setOrigin(0));
