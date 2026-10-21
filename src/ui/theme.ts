@@ -39,14 +39,14 @@ export const THEMES: Record<MapId, Theme> = {
   },
   // Haven City: gunmetal plates and Krimzon Guard red
   jak2: {
-    id: 'jak2', name: 'Renegade', font: '"Exo 2"', titleFont: '"Russo One"',
+    id: 'jak2', name: 'Renegade', font: '"Exo 2"', titleFont: `"${LOGO_FAMILY}", "Russo One"`,
     panel: 0x15181c, panelHover: 0x2a2f36, text: '#e6ebf0', accent: '#e63946', stroke: '#0b0c0e',
     buttons: { primary: 0xe63946, secondary: 0x9fb3c8, back: 0x5c6670, danger: 0xff8800 },
     shape: 'plated', background: groundTexture('jak2', 0), backgroundAlpha: 0.3,
   },
   // Spargus and the desert: sun-bleached sand, rust and worn edges
   jak3: {
-    id: 'jak3', name: 'Wastelander', font: '"Kanit"', titleFont: '"Bungee"',
+    id: 'jak3', name: 'Wastelander', font: '"Kanit"', titleFont: `"${LOGO_FAMILY}", "Bungee"`,
     panel: 0x2a1c12, panelHover: 0x4a3222, text: '#f6e7cf', accent: '#f4a259', stroke: '#2a1408',
     buttons: { primary: 0xf4a259, secondary: 0x5fa8a0, back: 0x9c8a74, danger: 0xbc4b51 },
     shape: 'worn', background: groundTexture('jak3', 1), backgroundAlpha: 0.3,
